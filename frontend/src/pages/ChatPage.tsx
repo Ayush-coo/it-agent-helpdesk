@@ -1,165 +1,75 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-
+import { Bot, LogOut, Settings, ShieldAlert, Plus, MessageSquare } from 'lucide-react';
+import LocalOpsChat from '../components/chat/LocalOpsChat';
 import { useAuth } from '../contexts/AuthContext';
-import { request, ApiError } from '../lib/api';
-import type { ChatMessage, ChatResponse } from '../types/chat';
-
-function makeId(): string {
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
 
 export default function ChatPage() {
-  const { token, user } = useAuth();
-  const [prompt, setPrompt] = useState('');
-  const [context, setContext] = useState('');
-  const [ticketId, setTicketId] = useState('');
-  const [useKnowledgeBase, setUseKnowledgeBase] = useState(true);
-  const [isSending, setIsSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: makeId(),
-      role: 'assistant',
-      content: 'I am ready to help with IT issues. Ask me about troubleshooting, access problems, or ticket updates.',
-    },
-  ]);
+  const { user, logout } = useAuth();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  const modelHint = useMemo(() => 'Ollama + LangChain', []);
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const text = prompt.trim();
-    if (!text || !token) {
-      return;
-    }
-
-    const userMessage: ChatMessage = {
-      id: makeId(),
-      role: 'user',
-      content: text,
-    };
-
-    setMessages((previous) => [...previous, userMessage]);
-    setPrompt('');
-    setIsSending(true);
-    setError(null);
-
-    try {
-      const response = await request<ChatResponse>('/api/v1/chat', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          message: text,
-          context: context.trim() || null,
-          ticket_id: ticketId.trim() || null,
-          use_knowledge_base: useKnowledgeBase,
-        }),
-      });
-
-      setMessages((previous) => [
-        ...previous,
-        {
-          id: makeId(),
-          role: 'assistant',
-          content: response.reply,
-          references: response.references,
-        },
-      ]);
-    } catch (submissionError) {
-      setError(submissionError instanceof ApiError ? submissionError.message : 'Unable to reach chatbot service');
-    } finally {
-      setIsSending(false);
-    }
-  }
+  const isAdminOrAgent = user?.role === 'admin' || user?.role === 'agent';
 
   return (
-    <main className="chat-page">
-      <section className="chat-shell">
-        <header className="chat-header">
-          <div>
-            <div className="eyebrow">Milestone 6</div>
-            <h1>AI helpdesk assistant</h1>
-            <p>
-              Signed in as {user?.email}. Messages are sent to a protected FastAPI endpoint powered by {modelHint}.
-            </p>
-          </div>
-          <div className="chat-header__links">
-            <Link to="/app/knowledge-base">Knowledge base</Link>
-            <Link to="/app">Back to dashboard</Link>
-          </div>
-        </header>
+    <div className="flex h-screen bg-[#212121] text-gray-100 font-sans overflow-hidden">
+      {/* Sidebar */}
+      <div 
+        className={`${isSidebarOpen ? 'w-64' : 'w-0'} bg-[#171717] flex-shrink-0 transition-all duration-300 overflow-hidden flex flex-col border-r border-gray-800`}
+      >
+        <div className="p-3">
+          <button className="flex items-center gap-2 w-full px-3 py-2.5 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium">
+            <Plus size={16} />
+            New Chat
+          </button>
+        </div>
 
-        <section className="chat-grid">
-          <aside className="chat-config">
-            <h2>Request context</h2>
-            <label>
-              Ticket ID
-              <input
-                value={ticketId}
-                onChange={(event) => setTicketId(event.target.value)}
-                placeholder="Optional ticket id"
-              />
-            </label>
-            <label>
-              Extra context
-              <textarea
-                value={context}
-                onChange={(event) => setContext(event.target.value)}
-                rows={8}
-                placeholder="Network outage details, system info, recent errors..."
-              />
-            </label>
-            <label className="chat-config__checkbox">
-              <input
-                type="checkbox"
-                checked={useKnowledgeBase}
-                onChange={(event) => setUseKnowledgeBase(event.target.checked)}
-              />
-              Use RAG knowledge base
-            </label>
-          </aside>
+        <div className="flex-1 overflow-y-auto p-3">
+          <div className="text-xs font-semibold text-gray-500 mb-2 px-3">Recent IT Requests</div>
+          {/* Mock history for now, but gives the GPT feel */}
+          <button className="flex items-center gap-2 w-full px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm text-left truncate text-gray-300">
+            <MessageSquare size={14} className="shrink-0" />
+            <span className="truncate">VPN Connection Issues</span>
+          </button>
+          <button className="flex items-center gap-2 w-full px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm text-left truncate text-gray-300">
+            <MessageSquare size={14} className="shrink-0" />
+            <span className="truncate">Need software license</span>
+          </button>
+        </div>
 
-          <section className="chat-panel">
-            <div className="chat-messages" aria-live="polite">
-              {messages.map((message) => (
-                <article key={message.id} className={`chat-bubble chat-bubble--${message.role}`}>
-                  <span>{message.role === 'user' ? 'You' : 'Assistant'}</span>
-                  <p>{message.content}</p>
-                  {message.role === 'assistant' && message.references?.length ? (
-                    <ul className="chat-references">
-                      {message.references.map((reference) => (
-                        <li key={reference.id}>
-                          <strong>{reference.title}</strong>
-                          <span>score: {reference.score.toFixed(3)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </article>
-              ))}
-            </div>
+        <div className="p-3 border-t border-gray-800 space-y-1">
+          {isAdminOrAgent && (
+            <Link to="/app/admin" className="flex items-center gap-2 w-full px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm">
+              <ShieldAlert size={16} />
+              Admin Center
+            </Link>
+          )}
+          <button className="flex items-center gap-2 w-full px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm">
+            <Settings size={16} />
+            Settings
+          </button>
+          <button onClick={logout} className="flex items-center gap-2 w-full px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm text-red-400">
+            <LogOut size={16} />
+            Sign Out
+          </button>
+        </div>
+      </div>
 
-            <form className="chat-form" onSubmit={handleSubmit}>
-              <textarea
-                value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-                rows={3}
-                placeholder="Describe your IT issue and what you have tried so far"
-                required
-              />
-              <div className="chat-form__actions">
-                {error ? <div className="auth-form__error">{error}</div> : null}
-                <button type="submit" disabled={isSending}>
-                  {isSending ? 'Sending...' : 'Send message'}
-                </button>
-              </div>
-            </form>
-          </section>
-        </section>
-      </section>
-    </main>
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col min-w-0 bg-[#212121] relative">
+        {/* Mobile Header / Sidebar Toggle */}
+        <div className="h-12 flex items-center px-4 md:hidden">
+          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-gray-400 hover:text-white">
+            <Bot size={24} />
+          </button>
+          <span className="ml-3 font-semibold">LocalOps</span>
+        </div>
+
+        {/* Desktop Sidebar Toggle (Optional, can just leave sidebar fixed) */}
+        
+        <main className="flex-1 overflow-hidden relative w-full h-full">
+          <LocalOpsChat />
+        </main>
+      </div>
+    </div>
   );
 }

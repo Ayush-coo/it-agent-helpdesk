@@ -1,9 +1,9 @@
 from enum import Enum
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Enum as SAEnum, ForeignKey, String, Text, JSON
-from sqlalchemy.orm import mapped_column
-from sqlalchemy.orm import Mapped
+from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from app.models.base import Base
@@ -88,7 +88,7 @@ class Ticket(Base):
     )
     category = mapped_column(String(120), nullable=True)
 
-    # --- NEW: Antigravity Telemetry & Escalation ---
+    # Incident detection and escalation telemetry.
     diagnostic_trail = mapped_column(
         JSON,
         nullable=True,

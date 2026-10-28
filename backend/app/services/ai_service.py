@@ -1,4 +1,4 @@
-"""Antigravity Predictive Triage & Dynamic Flow Routing Engine.
+"""Local triage and routing engine.
 
 This module implements:
   1. ITIL v4 severity classification (P1-P4)
@@ -20,7 +20,6 @@ import httpx
 from app.core.config import settings
 from app.services.calibration import calibrate_triage
 from app.services.pii_redaction import redact_pii
-
 
 # ---------------------------------------------------------------------------
 # 1.  ITIL v4 Severity Mapping  (P1 = Critical → P4 = Low)
@@ -131,10 +130,10 @@ def _classify_category(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 4.  Dynamic Agent Routing  (Antigravity Flow Engine)
+# 4.  Dynamic Agent Routing
 # ---------------------------------------------------------------------------
 
-# Mock telemetry — in production this would query a real metrics endpoint
+# Simulated telemetry until a monitoring adapter is configured.
 def _get_system_telemetry() -> dict[str, Any]:
     """Simulate real-time system telemetry for dynamic routing decisions."""
     return {
@@ -153,6 +152,7 @@ def _get_system_telemetry() -> dict[str, Any]:
             "escalation_agent": 60,
         },
         "system_health": "nominal",
+        "mode": "simulated",
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -382,7 +382,7 @@ def _apply_trigger_rules(description: str, result: dict[str, Any]) -> dict[str, 
 def suggest_triage(description: str) -> dict[str, Any]:
     """Perform enterprise-grade intelligent triage on an incident description.
 
-    Tries Ollama LLM first, then falls back to the Antigravity heuristic engine.
+    Tries Ollama LLM first, then falls back to the local heuristic engine.
     Returns a rich triage result with severity, category, routing, assets,
     diagnostic trail, and escalation flags.
     """
@@ -438,7 +438,7 @@ def suggest_triage(description: str) -> dict[str, Any]:
     except Exception:
         pass
 
-    # --- Heuristic Fallback (Antigravity Engine) ---
+    # --- Heuristic fallback ---
     severity = _classify_severity(description)
     priority = _severity_to_priority(severity)
     category = _classify_category(description)

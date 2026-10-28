@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.project_name,
     version=settings.project_version,
-    description="AI-Powered IT Helpdesk Agent backend",
+    description="Local-first, policy-gated IT operations backend",
     lifespan=lifespan,
 )
 

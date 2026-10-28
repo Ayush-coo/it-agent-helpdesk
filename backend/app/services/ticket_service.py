@@ -1,4 +1,4 @@
-"""Ticket Service with Antigravity Triage & Escalation Integration.
+"""Ticket service with triage, incident detection, and escalation integration.
 
 This service orchestrates:
   - Ticket CRUD operations
@@ -19,15 +19,15 @@ from app.schemas.ticket import (
     EscalationSummary,
     TicketCreate,
     TicketOverview,
+    TicketRead,
     TicketStatusCount,
     TicketUpdate,
 )
 from app.services.ai_service import suggest_triage
-from app.services.runbooks import RunbookStatus, execute_runbook, recommend_runbooks
-from app.services.ticket_events import publish
 from app.services.incident_detection import detect_and_link
 from app.services.policy_engine import evaluate_action
-
+from app.services.runbooks import RunbookStatus, execute_runbook, recommend_runbooks
+from app.services.ticket_events import publish
 
 # Map triage severity strings to the SeverityLevel enum
 _SEVERITY_MAP = {
@@ -47,7 +47,7 @@ class TicketService:
     # ------------------------------------------------------------------
 
     async def create_ticket(self, session: AsyncSession, payload: TicketCreate, current_user: User) -> Ticket:
-        # 1. Run the Antigravity Triage Engine
+        # 1. Run the local triage engine.
         triage = suggest_triage(payload.description)
 
         severity_str = triage.get("severity", "P4")
@@ -153,7 +153,7 @@ class TicketService:
             scope=scope,
             total=len(tickets),
             status_counts=[TicketStatusCount(status=status, count=counts[status.value]) for status in TicketStatus],
-            recent_tickets=tickets[:8],
+            recent_tickets=[TicketRead.model_validate(ticket) for ticket in tickets[:8]],
             refreshed_at=datetime.now(timezone.utc),
         )
 

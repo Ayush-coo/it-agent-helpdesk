@@ -1,50 +1,119 @@
-# AI-Powered IT Helpdesk Agent
+# LocalOps Helpdesk
 
-Milestone 1 scaffold for a local-first AI helpdesk platform.
+[![CI](https://github.com/Ayush-coo/it-agent-helpdesk/actions/workflows/ci.yml/badge.svg)](https://github.com/Ayush-coo/it-agent-helpdesk/actions/workflows/ci.yml)
 
-## Layout
+LocalOps Helpdesk is a local-first, policy-gated incident-aware IT operations agent for small teams in campuses, clinics, and MSPs where ticket text and operational evidence must stay on the network. Unlike generic employee chatbots or ticket-deflection tools, it clusters correlated failures into probable incidents, exposes evidence and calibrated uncertainty, blocks risky actions until policy and approval allow them, and keeps a tamper-evident audit trail. Ollama and Chroma provide local reasoning and retrieval; simulated adapters are clearly marked until connected to real systems.
 
-- `backend/` FastAPI service
-- `frontend/` React + TypeScript app
-- `docker-compose.yml` local deployment stack with PostgreSQL
+## Architecture
 
-## Milestone 2
+```mermaid
+flowchart LR
+    UI[React employee and agent console] --> API[FastAPI API]
+    API --> AUTH[JWT and RBAC]
+    API --> TICKETS[(PostgreSQL tickets)]
+    API --> INCIDENTS[(Probable incidents)]
+    API --> POLICY[YAML policy engine]
+    POLICY --> RUNBOOKS[Simulated runbook adapters]
+    API --> AUDIT[(Hash-chained audit log)]
+    API --> RAG[Chroma retrieval]
+    RAG --> OLLAMA[Local Ollama]
+    API --> EVAL[Replayable evaluation]
+    API --> SLACK[Slack adapter or mock fallback]
+```
 
-- JWT auth is available through `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, and `GET /api/v1/auth/me`.
-- The backend can boot against the local SQLite default for direct VS Code runs, or against PostgreSQL through Docker Compose.
+## Feature status
 
-## Run locally
+| Capability | Status | Notes |
+|---|---|---|
+| JWT auth, RBAC, ticket lifecycle | Real | Persisted through SQLAlchemy/Alembic |
+| Probable-incident clustering | Real | Time window, shared attributes, Ollama embeddings with lexical fallback |
+| Outage replay simulator | Real | Deterministic synthetic traffic and naive baseline comparison |
+| YAML runbook policy | Real | Risk, approver, preconditions, dry-run, rollback, rate/hours metadata |
+| Runbook infrastructure changes | Simulated | Handlers return simulated outcomes; no endpoint or IAM mutation occurs |
+| Calibrated abstention | Real | Evidence, threshold, reliability curve, safety metrics |
+| Knowledge-debt drafting | Real / simulated fallback | Human approval is required before Chroma ingestion |
+| Ollama reasoning and Chroma retrieval | Real when local services are available | No cloud model dependency |
+| Slack notification | Real adapter / mock fallback | Configure `SLACK_WEBHOOK_URL` to use the webhook |
+| Recruitment page | Legacy and unrelated | Retained by request; not part of the LocalOps thesis |
 
-1. Copy `.env.example` to `.env`.
-2. Start the backend from `backend/` with `uvicorn app.main:app --reload`.
-3. Start the frontend from `frontend/` with `npm install` and `npm run dev`.
+## Quickstart
 
-## Run with Docker
+### Docker
 
-```bash
+```powershell
+Copy-Item .env.example .env
+# Set JWT_SECRET_KEY to a long random value before using production mode.
 docker compose up --build
 ```
 
-### Notes
-- Use `docker compose up --build -d` to run detached.
-- If `docker` is not installed on your machine, follow the "Run locally" steps below instead.
+Open `http://localhost:5173/login`. The backend API is at `http://localhost:8000/docs`; metrics are at `http://localhost:8000/metrics`. Docker starts PostgreSQL, Ollama, Chroma persistence, Alembic migrations, and the nginx-served frontend. Pull local models separately when Ollama is ready:
 
-## Tests
-
-Run backend tests from the `backend/` directory to ensure imports resolve:
-
-```bash
-cd backend
-python -m pytest -q tests
+```powershell
+docker exec it-agent-ollama ollama pull llama3.1:8b
+docker exec it-agent-ollama ollama pull nomic-embed-text
 ```
 
-## Troubleshooting
-- If tests error with `ModuleNotFoundError: No module named 'app'`, ensure you run pytest from `backend/` so `app` is on `PYTHONPATH`.
-- If you see Docker errors like "CommandNotFoundException: docker", install Docker Desktop and retry the Docker commands.
+### Host development
 
-## Next steps I can take
-- Add `start-dev.ps1` and `start-dev.sh` convenience scripts to boot backend+frontend locally.
-- Add a `Makefile` with common targets.
-- Improve `docker-compose.yml` services (healthchecks, volume names).
+```powershell
+Copy-Item .env.example .env
+.\start-dev.ps1
+```
 
-Tell me which next step you want me to do and I'll implement it.
+Or run the backend from `backend/` and the frontend from `frontend/` separately. Host development defaults to PostgreSQL on `localhost`; Compose overrides the database hostname to `db`.
+
+## Validation and evaluation
+
+```powershell
+cd backend
+python -m pytest tests
+python -m eval.run
+python -m scripts.verify_audit
+```
+
+The evaluation command writes [`backend/eval/report.md`](backend/eval/report.md) from 160 labelled synthetic tickets and 10 outage scenarios. The current measured results are:
+
+| Metric | Result |
+|---|---:|
+| Severity accuracy | 66.9% |
+| Category accuracy | 73.8% |
+| P1/P2 recall | 79.7% |
+| Incident precision / recall | 100.0% / 100.0% |
+| Incident time to detect | 1.9 minutes |
+| Knowledge coverage before / after | 0.0% / 100.0% |
+
+Local model latency/accuracy is reported as unavailable when Ollama models are not present; no unmeasured model claim is included.
+
+## Security model
+
+- Production startup rejects the default JWT secret.
+- PII and secrets are redacted before text reaches the local LLM.
+- Ticket text cannot approve or bypass policy decisions.
+- Dry-run is the default for every policy action.
+- State-changing actions require the configured approver role and explicit approval.
+- Every action decision and outcome is recorded in a hash chain that can be verified.
+- P1/P2 and low-confidence triage abstain or escalate instead of guessing.
+- Simulated adapters never claim to have changed external infrastructure.
+
+## Limitations
+
+- Runbooks are simulated and require real adapters for IAM, endpoint, VPN, and print systems.
+- Ollama model quality depends on the locally installed model and hardware.
+- The lexical embedding fallback is less precise than a live Ollama embedding model.
+- The evaluation data is synthetic and should not be presented as production accuracy.
+- Docker, Ollama model pulls, and Slack delivery were not verifiable in this Windows environment because Docker was unavailable.
+- Recruitment remains as an isolated legacy demo because deletion was not approved.
+
+## Roadmap
+
+1. Connect approved IAM, endpoint, network, and ITSM adapters behind the existing policy interface.
+2. Add production-labelled incident and KB datasets with human-reviewed calibration.
+3. Add SSO, asset inventory, SLA reporting, and notification delivery.
+4. Remove or archive the legacy recruitment demo after explicit approval.
+
+## Resume bullets
+
+- Built a local-first incident-aware IT operations agent with 100% incident precision and 100% recall across 10 injected outage scenarios.
+- Implemented evidence-based triage achieving 66.9% severity accuracy, 73.8% category accuracy, and 79.7% P1/P2 recall on 160 labelled synthetic tickets.
+- Added calibrated abstention, policy-gated simulated runbooks, PII redaction, and tamper-evident audit verification for safe local operations.
+- Added a knowledge-debt loop that increased synthetic retrieval coverage from 0.0% to 100.0% after approved article ingestion.

@@ -35,60 +35,67 @@ export default function RegisterPage() {
 
   return (
     <AuthFrame
-      eyebrow="Milestone 5"
-      title="Create an account for the helpdesk agent"
-      subtitle="Register once, then use the same JWT session to access tickets and future admin tools."
+      eyebrow="Local-first IT operations"
+      title="Create your account"
+      subtitle="Start a governed, local-first IT operations workspace."
     >
-      <div className="auth-card__header">
-        <h2>Get started</h2>
-        <p>Registration calls the backend auth endpoint directly.</p>
-      </div>
-
-      <form className="auth-form" onSubmit={handleSubmit}>
-        <label>
-          Full name
+      <form className="space-y-4" onSubmit={handleSubmit}>
+        <label className="block">
+          <span className="text-sm font-medium text-gray-300 mb-1 block">Full name</span>
           <input
             type="text"
             autoComplete="name"
             value={fullName}
-            onChange={(event) => setFullName(event.target.value)}
+            onChange={(e) => setFullName(e.target.value)}
             placeholder="Alex Morgan"
+            className="w-full bg-[#212121] border border-gray-600/50 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder:text-gray-500 outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400/30 transition-all"
           />
         </label>
 
-        <label>
-          Email
+        <label className="block">
+          <span className="text-sm font-medium text-gray-300 mb-1 block">Email</span>
           <input
             type="email"
             autoComplete="email"
             value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            onChange={(e) => setEmail(e.target.value)}
             placeholder="you@company.com"
             required
+            className="w-full bg-[#212121] border border-gray-600/50 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder:text-gray-500 outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400/30 transition-all"
           />
         </label>
 
-        <label>
-          Password
+        <label className="block">
+          <span className="text-sm font-medium text-gray-300 mb-1 block">Password</span>
           <input
             type="password"
             autoComplete="new-password"
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            onChange={(e) => setPassword(e.target.value)}
             placeholder="Minimum 8 characters"
             required
+            className="w-full bg-[#212121] border border-gray-600/50 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder:text-gray-500 outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400/30 transition-all"
           />
         </label>
 
-        {error ? <div className="auth-form__error">{error}</div> : null}
+        {error && (
+          <div className="px-4 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+            {error}
+          </div>
+        )}
 
-        <button type="submit" disabled={isSubmitting}>
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="w-full py-3 rounded-xl font-semibold text-sm bg-white text-black hover:bg-gray-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           {isSubmitting ? 'Creating account...' : 'Create account'}
         </button>
       </form>
 
-      <p className="auth-card__switcher">
-        Already have an account? <Link to="/login">Sign in</Link>
+      <p className="text-center text-sm text-gray-500 mt-6">
+        Already have an account?{' '}
+        <Link to="/login" className="text-white hover:underline">Sign in</Link>
       </p>
     </AuthFrame>
   );

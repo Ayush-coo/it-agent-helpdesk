@@ -1,15 +1,31 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.dependencies import get_current_user, require_roles
 from app.db.session import get_db
-from app.models.user import User, UserRole
+from app.integrations.slack import build_notifier
 from app.models.audit_log import AuditLog
 from app.models.ticket import Ticket, TicketStatus
+from app.models.user import UserRole
 from app.services.audit_verify import verify_audit_chain
 
 router = APIRouter()
+
+
+class NotificationRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+
+
+@router.post("/notifications/test", dependencies=[Depends(require_roles(UserRole.ADMIN))])
+async def send_notification(
+    payload: NotificationRequest,
+    _=Depends(get_current_user),
+) -> dict[str, bool]:
+    sent = await build_notifier(settings.slack_webhook_url).send(payload.message)
+    return {"sent": sent, "simulated": settings.slack_webhook_url is None}
 
 
 @router.get("/audit-logs/verify", dependencies=[Depends(require_roles(UserRole.ADMIN))])

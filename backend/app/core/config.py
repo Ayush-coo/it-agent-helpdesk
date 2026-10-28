@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     incident_similarity_threshold: float = 0.78
     incident_window_minutes: int = 30
     incident_min_members: int = 3
+    slack_webhook_url: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=str(Path(__file__).resolve().parents[2] / ".env"),

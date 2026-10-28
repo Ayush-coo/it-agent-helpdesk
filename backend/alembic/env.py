@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.models import Base  # noqa: F401
 from app.models import ticket as _ticket_model  # noqa: F401
 from app.models import user as _user_model  # noqa: F401
+from app.models import incident as _incident_model  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)

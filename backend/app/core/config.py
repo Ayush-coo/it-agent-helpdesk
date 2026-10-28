@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     chroma_persist_directory: str = str(Path(__file__).resolve().parents[2] / ".chroma")
     knowledge_collection_name: str = "it_helpdesk_knowledge"
     knowledge_retrieval_k: int = 4
+    incident_similarity_threshold: float = 0.78
+    incident_window_minutes: int = 30
+    incident_min_members: int = 3
 
     model_config = SettingsConfigDict(
         env_file=str(Path(__file__).resolve().parents[2] / ".env"),

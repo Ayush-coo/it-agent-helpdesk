@@ -6,6 +6,9 @@ from app.api.v1.health import router as health_router
 from app.api.v1.knowledge_base import router as knowledge_base_router
 from app.api.v1.tickets import router as tickets_router
 from app.api.v1.ai import router as ai_router
+from app.api.v1.escalation import router as escalation_router
+from app.api.v1.admin import router as admin_router
+from app.api.v1.incidents import router as incidents_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
@@ -14,3 +17,6 @@ api_router.include_router(health_router, prefix="/health", tags=["health"])
 api_router.include_router(knowledge_base_router, prefix="/knowledge-base", tags=["knowledge-base"])
 api_router.include_router(tickets_router, prefix="/tickets", tags=["tickets"])
 api_router.include_router(ai_router, prefix="/ai", tags=["ai"])
+api_router.include_router(escalation_router, prefix="/ops", tags=["operations"])
+api_router.include_router(admin_router, prefix="/admin", tags=["admin"])
+api_router.include_router(incidents_router, prefix="/incidents", tags=["incidents"])

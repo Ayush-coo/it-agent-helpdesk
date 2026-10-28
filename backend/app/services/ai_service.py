@@ -19,6 +19,7 @@ import httpx
 
 from app.core.config import settings
 from app.services.calibration import calibrate_triage
+from app.services.pii_redaction import redact_pii
 
 
 # ---------------------------------------------------------------------------
@@ -387,6 +388,7 @@ def suggest_triage(description: str) -> dict[str, Any]:
     """
 
     # --- Attempt Ollama LLM inference ---
+    safe_description = redact_pii(description)
     prompt = (
         "You are the triage module of an enterprise-grade IT Operations Agent. "
         "Analyze the incoming IT incident. Return a JSON object with keys: "
@@ -403,7 +405,7 @@ def suggest_triage(description: str) -> dict[str, Any]:
         "P3 = moderate impact, single user, workaround may exist. "
         "P4 = low impact, informational, enhancement request. "
         "Respond ONLY with valid JSON.\n\n"
-        f"Description: {description}\n"
+        f"Description: {safe_description}\n"
     )
 
     try:

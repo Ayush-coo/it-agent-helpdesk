@@ -23,9 +23,10 @@ from app.schemas.ticket import (
     TicketUpdate,
 )
 from app.services.ai_service import suggest_triage
-from app.services.runbooks import execute_runbook, recommend_runbooks
+from app.services.runbooks import RunbookStatus, execute_runbook, recommend_runbooks
 from app.services.ticket_events import publish
 from app.services.incident_detection import detect_and_link
+from app.services.policy_engine import evaluate_action
 
 
 # Map triage severity strings to the SeverityLevel enum
@@ -340,6 +341,9 @@ class TicketService:
         runbook_name: str,
         params: dict,
         current_user: User,
+        *,
+        approved: bool = False,
+        dry_run: bool = True,
     ) -> Ticket | None:
         """Manually trigger a runbook against a ticket (ADMIN/AGENT only)."""
         if current_user.role not in {UserRole.ADMIN, UserRole.AGENT}:
@@ -349,7 +353,29 @@ class TicketService:
         if ticket is None:
             return None
 
-        result = execute_runbook(runbook_name, params)
+        decision = evaluate_action(
+            runbook_name,
+            params,
+            current_user.role,
+            approved=approved,
+            dry_run=dry_run,
+        )
+        if not decision.can_execute:
+            result = execute_runbook(runbook_name, {})
+            result.status = RunbookStatus.SIMULATED if dry_run else RunbookStatus.BLOCKED
+            result.actions = [decision.reason]
+            result.details = {
+                "policy_decision": decision.decision,
+                "risk_tier": decision.risk_tier,
+                "blast_radius": decision.blast_radius,
+                "rollback_steps": decision.rollback_steps,
+                "dry_run": dry_run,
+            }
+            result.requires_approval = decision.decision == "needs_approval"
+        else:
+            result = execute_runbook(runbook_name, params)
+            result.details["policy_decision"] = decision.decision
+            result.details["dry_run"] = dry_run
         ticket.runbook_result = result.to_dict()
 
         trail = list(ticket.diagnostic_trail or [])

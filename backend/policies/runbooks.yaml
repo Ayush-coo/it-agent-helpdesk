@@ -1,0 +1,75 @@
+runbooks:
+  reset_ad_password:
+    description: Reset an Active Directory password after identity verification.
+    risk_tier: high
+    required_approver_role: admin
+    preconditions:
+      - identity_verified
+      - target_user
+    dry_run: true
+    blast_radius: one_identity
+    rollback_steps:
+      - Revoke the temporary credential
+      - Restore the prior account lock state
+    rate_limit_per_hour: 10
+    allowed_hours: ["06:00-22:00"]
+  flush_vpn_sessions:
+    description: Flush stale VPN sessions for one user or device.
+    risk_tier: medium
+    required_approver_role: agent
+    preconditions:
+      - target
+    dry_run: true
+    blast_radius: one_identity_or_device
+    rollback_steps:
+      - Re-establish the prior VPN session
+    rate_limit_per_hour: 30
+    allowed_hours: ["00:00-23:59"]
+  restart_print_spooler:
+    description: Restart the print spooler on one endpoint.
+    risk_tier: medium
+    required_approver_role: agent
+    preconditions:
+      - device_id
+    dry_run: true
+    blast_radius: one_endpoint
+    rollback_steps:
+      - Restore the spooler service state
+    rate_limit_per_hour: 20
+    allowed_hours: ["06:00-22:00"]
+  clear_browser_cache:
+    description: Clear browser cache on one managed endpoint.
+    risk_tier: low
+    required_approver_role: agent
+    preconditions:
+      - device_id
+    dry_run: true
+    blast_radius: one_endpoint
+    rollback_steps:
+      - Restore the browser profile from managed backup
+    rate_limit_per_hour: 30
+    allowed_hours: ["00:00-23:59"]
+  restart_endpoint_service:
+    description: Restart one named service on one managed endpoint.
+    risk_tier: high
+    required_approver_role: admin
+    preconditions:
+      - device_id
+      - service_name
+    dry_run: true
+    blast_radius: one_endpoint_service
+    rollback_steps:
+      - Restart the prior service version
+    rate_limit_per_hour: 10
+    allowed_hours: ["06:00-22:00"]
+  system_health_check:
+    description: Collect read-only endpoint health signals.
+    risk_tier: low
+    required_approver_role: agent
+    preconditions:
+      - device_id
+    dry_run: true
+    blast_radius: read_only
+    rollback_steps: []
+    rate_limit_per_hour: 60
+    allowed_hours: ["00:00-23:59"]

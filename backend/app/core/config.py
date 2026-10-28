@@ -3,12 +3,12 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    project_name: str = "IT Helpdesk Agent"
+    project_name: str = "LocalOps Helpdesk"
     project_version: str = "0.1.0"
     api_v1_prefix: str = "/api/v1"
     environment: str = "development"
@@ -52,6 +52,13 @@ class Settings(BaseSettings):
                         return [str(origin).strip() for origin in parsed_value if str(origin).strip()]
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
+
+    @model_validator(mode="after")
+    def _reject_insecure_production_secret(self) -> "Settings":
+        insecure_secrets = {"dev-secret-change-me", "change-me-in-production"}
+        if self.environment.lower() in {"production", "prod"} and self.jwt_secret_key in insecure_secrets:
+            raise ValueError("JWT_SECRET_KEY must be changed before production startup")
+        return self
 
 
 @lru_cache

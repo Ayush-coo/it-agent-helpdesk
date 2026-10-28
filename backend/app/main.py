@@ -1,5 +1,8 @@
-import asyncio
 from contextlib import asynccontextmanager
+
+from app.core.platform import configure_platform
+
+configure_platform()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,11 +11,6 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.logging import configure_logging
 from app.db.init_db import init_db
-
-
-if hasattr(asyncio, "WindowsSelectorEventLoopPolicy"):
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

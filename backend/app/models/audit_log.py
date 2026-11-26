@@ -1,7 +1,6 @@
-from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Float, ForeignKey, String, JSON
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, String
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.sql import func
 

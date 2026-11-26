@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "dev-secret-change-me"
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60
+    admin_email: str | None = None
+    admin_password: str | None = None
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1:8b"
     ollama_embedding_model: str = "nomic-embed-text"
@@ -27,6 +29,7 @@ class Settings(BaseSettings):
     chroma_persist_directory: str = str(Path(__file__).resolve().parents[2] / ".chroma")
     knowledge_collection_name: str = "it_helpdesk_knowledge"
     knowledge_retrieval_k: int = 4
+    knowledge_min_score: float = 0.3
     incident_similarity_threshold: float = 0.78
     incident_window_minutes: int = 30
     incident_min_members: int = 3

@@ -36,8 +36,8 @@ export default function LoginPage() {
   return (
     <AuthFrame
       eyebrow="LocalOps Helpdesk · Local IT operations"
-      title="Welcome back, recruiter"
-      subtitle="Sign in to turn hiring briefs into explainable, bias-aware shortlists."
+      title="Welcome to LocalOps"
+      subtitle="Sign in for explainable, policy-aware IT support."
     >
       <form className="space-y-4" onSubmit={handleSubmit}>
         <label className="block">

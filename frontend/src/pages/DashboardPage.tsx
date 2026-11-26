@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ShieldAlert, Ticket, BookOpen, MessageSquare, Plus, Activity, CheckCircle2, Clock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { request, ApiError } from '../lib/api';
-import type { TicketOverview, TicketRead, TicketStatus } from '../types/ticket';
+import type { TicketOverview, TicketRead } from '../types/ticket';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -12,7 +12,6 @@ export default function DashboardPage() {
   const [tickets, setTickets] = useState<TicketRead[]>([]);
   const [stats, setStats] = useState<TicketOverview | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isUpdating, setIsUpdating] = useState<string | null>(null);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -41,40 +40,18 @@ export default function DashboardPage() {
     fetchOverview();
   }, [token]);
 
-  async function updateTicketStatus(ticketId: string, status: TicketStatus) {
-    if (!token) return;
-    setIsUpdating(ticketId);
-    setError(null);
-    try {
-      const updated = await request<TicketRead>(`/api/v1/tickets/${ticketId}`, {
-        method: 'PATCH',
-        headers: { Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ status }),
-      });
-      setTickets((current) => current.map((ticket) => ticket.id === updated.id ? updated : ticket));
-      setStats((current) => current ? {
-        ...current,
-        recent_tickets: current.recent_tickets.map((ticket) => ticket.id === updated.id ? updated : ticket),
-      } : current);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Unable to update ticket');
-    } finally {
-      setIsUpdating(null);
-    }
-  }
-
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     if (!token) return;
     setIsCreating(true);
     setError(null);
     try {
-      await request('/api/v1/tickets', {
+      const created = await request<TicketRead>('/api/v1/tickets', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify({ title, description, priority, category: 'general' }),
       });
-      navigate('/app/chat');
+      navigate(`/app/tickets/${created.id}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Unable to create ticket');
     } finally {
@@ -108,7 +85,7 @@ export default function DashboardPage() {
       <header className="px-8 py-6 border-b border-slate-800/50 bg-slate-900/50">
         <div className="flex justify-between items-center max-w-7xl mx-auto">
           <div>
-            <h1 className="text-2xl font-bold text-white mb-1">Welcome back, {user?.full_name || 'Agent'}</h1>
+            <h1 className="text-2xl font-bold text-white mb-1">Welcome to LocalOps</h1>
             <p className="text-slate-400 text-sm">Enterprise IT Support Portal</p>
           </div>
           <div className="flex items-center gap-4">
@@ -229,7 +206,9 @@ export default function DashboardPage() {
                   <div key={ticket.id} className="p-4 bg-slate-900/50 border border-slate-800 rounded-xl hover:border-slate-700 transition-colors">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-slate-200 font-medium truncate">{ticket.title}</h3>
+                        <Link to={`/app/tickets/${ticket.id}`} className="text-slate-200 font-medium truncate hover:text-white">
+                          {ticket.ticket_number} · {ticket.title}
+                        </Link>
                         <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
                           <span className="flex items-center gap-1">
                             {getStatusIcon(ticket.status)}
@@ -253,21 +232,6 @@ export default function DashboardPage() {
                           <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center gap-1">
                             <ShieldAlert size={10} /> Escalatated
                           </span>
-                        )}
-                        {isAdminOrAgent && (
-                          <select
-                            aria-label={`Update status for ${ticket.title}`}
-                            value={ticket.status}
-                            disabled={isUpdating === ticket.id}
-                            onChange={(event) => updateTicketStatus(ticket.id, event.target.value as TicketStatus)}
-                            className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-300 disabled:opacity-50"
-                          >
-                            <option value="open">Open</option>
-                            <option value="in_progress">In progress</option>
-                            <option value="waiting_on_user">Waiting on user</option>
-                            <option value="resolved">Resolved</option>
-                            <option value="closed">Closed</option>
-                          </select>
                         )}
                       </div>
                     </div>

@@ -81,7 +81,10 @@ async def handle_escalation(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Action must be 'approve' or 'reject'",
         )
-    ticket = await TicketService().handle_escalation(session, ticket_id, action, current_user)
+    try:
+        ticket = await TicketService().handle_escalation(session, ticket_id, action, current_user)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     if ticket is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

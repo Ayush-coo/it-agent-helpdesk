@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.user import User
+from app.models.user import User, UserRole
 
 
 class UserRepository:
@@ -18,3 +18,15 @@ class UserRepository:
         session.add(user)
         await session.flush()
         return user
+
+    async def list_all(self, session: AsyncSession) -> list[User]:
+        result = await session.execute(select(User).order_by(User.created_at.desc()))
+        return list(result.scalars().all())
+
+    async def list_assignable(self, session: AsyncSession) -> list[User]:
+        result = await session.execute(
+            select(User)
+            .where(User.is_active.is_(True), User.role.in_([UserRole.AGENT, UserRole.ADMIN]))
+            .order_by(User.full_name, User.email)
+        )
+        return list(result.scalars().all())

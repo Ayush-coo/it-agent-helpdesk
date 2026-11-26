@@ -7,7 +7,15 @@ import ChatMessage from './ChatMessage';
 export default function LocalOpsChat() {
   const { token } = useAuth();
   const [inputText, setInputText] = useState('');
-  const { messages, sendMessage, isStreaming, error } = useLocalOpsStream(token);
+  const {
+    messages,
+    sendMessage,
+    confirmSensitiveAction,
+    cancelSensitiveAction,
+    pendingAction,
+    isStreaming,
+    error,
+  } = useLocalOpsStream(token);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -61,7 +69,17 @@ export default function LocalOpsChat() {
             {messages.map((msg, i) => {
               // Skip the initial greeting if we have history
               if (i === 0 && msg.role === 'assistant' && msg.content.includes('I’m LocalOps')) return null;
-              return <ChatMessage key={msg.id} message={msg} />
+              return (
+                <ChatMessage
+                  key={msg.id}
+                  message={msg}
+                  pendingAction={pendingAction}
+                  isLatestPendingAction={i === messages.length - 1}
+                  isStreaming={isStreaming}
+                  onConfirm={confirmSensitiveAction}
+                  onCancel={cancelSensitiveAction}
+                />
+              );
             })}
             {isStreaming && (
               <div className="max-w-3xl w-full mx-auto px-4 py-6 flex items-start gap-4">

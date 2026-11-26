@@ -14,3 +14,7 @@ class UserRead(BaseModel):
     role: UserRole
     is_active: bool
     created_at: datetime
+
+
+class UserRoleUpdate(BaseModel):
+    role: UserRole

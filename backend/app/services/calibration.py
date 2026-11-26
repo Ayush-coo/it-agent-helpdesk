@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
-
 VALIDATION_SET = [
     ("VPN unavailable for the whole clinic", "P1"),
     ("My VPN is not connecting and I cannot work", "P2"),

@@ -5,12 +5,12 @@ import time
 from pathlib import Path
 
 import httpx
-
 from app.core.config import settings
 from app.services.ai_service import _classify_category, _classify_severity
-from app.services.calibration import calibration_report, calibrate_triage
+from app.services.calibration import calibrate_triage, calibration_report
 from app.services.incident_simulator import simulate_incident_detection
 from app.services.knowledge_debt import knowledge_coverage_report
+
 from eval.synthetic import build_dataset
 
 

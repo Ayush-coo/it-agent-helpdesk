@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import re
 
-
 _PATTERNS = (
     (re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE), "[EMAIL_REDACTED]"),
     (re.compile(r"\b(?:\+?\d[\d\s().-]{8,}\d)\b"), "[PHONE_REDACTED]"),

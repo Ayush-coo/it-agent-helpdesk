@@ -16,12 +16,46 @@ from app.core.config import settings
 from app.core.logging import configure_logging
 from app.core.metrics import prometheus_text, record_request
 from app.db.init_db import init_db
+from app.db.session import AsyncSessionLocal
+from app.core.security import hash_password
+from app.models.user import User, UserRole
+from app.repositories.user_repository import UserRepository
+from app.services.chat_service import ChatService
+from app.services.knowledge_base_service import KnowledgeBaseService
+
+
+async def ensure_development_admin() -> None:
+    if settings.environment.lower() not in {"development", "dev"}:
+        return
+    admin_email = settings.admin_email
+    admin_password = settings.admin_password
+    if not admin_email and not admin_password:
+        return
+    if not admin_email or not admin_password:
+        raise ValueError("ADMIN_EMAIL and ADMIN_PASSWORD must both be configured")
+
+    email = admin_email.lower().strip()
+    async with AsyncSessionLocal() as session:
+        existing = await UserRepository().get_by_email(session, email)
+        if existing is None:
+            session.add(
+                User(
+                    full_name="Local Administrator",
+                    email=email,
+                    password_hash=hash_password(admin_password),
+                    role=UserRole.ADMIN,
+                )
+            )
+            await session.commit()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging()
     await init_db()
+    await ensure_development_admin()
+    app.state.knowledge_base_service = KnowledgeBaseService()
+    app.state.chat_service = ChatService(app.state.knowledge_base_service)
     yield
 
 

@@ -1,18 +1,27 @@
+from app.models.audit_log import AuditLog
 from app.models.base import Base
-from app.models.user import User, UserRole
+from app.models.conversation import Conversation, ConversationMessage
+from app.models.incident import Incident, IncidentStatus, IncidentTicket
 from app.models.ticket import (
+    EscalationStatus,
+    SeverityLevel,
     Ticket,
+    TicketComment,
+    TicketEvent,
+    TicketNumberCounter,
     TicketPriority,
     TicketStatus,
-    SeverityLevel,
-    EscalationStatus,
 )
-from app.models.audit_log import AuditLog
-from app.models.incident import Incident, IncidentStatus, IncidentTicket
+from app.models.user import User, UserRole
 
 __all__ = [
     "Base",
+    "Conversation",
+    "ConversationMessage",
     "Ticket",
+    "TicketComment",
+    "TicketEvent",
+    "TicketNumberCounter",
     "TicketPriority",
     "TicketStatus",
     "SeverityLevel",

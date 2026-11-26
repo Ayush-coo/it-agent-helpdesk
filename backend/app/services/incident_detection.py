@@ -5,7 +5,6 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any
 
 import httpx
 from sqlalchemy import select
@@ -13,8 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.incident import Incident, IncidentStatus, IncidentTicket
-from app.models.ticket import EscalationStatus, Ticket
-
+from app.models.ticket import EscalationStatus, Ticket, TicketEvent
 
 _TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9_-]{2,}", re.IGNORECASE)
 
@@ -153,7 +151,6 @@ async def detect_and_link(
     if existing_id:
         incident = await session.get(Incident, existing_id)
     elif len(related) >= settings.incident_min_members:
-        common = next((match[2] for match in matches if match[2]), set())
         incident = Incident(
             title=f"Probable incident: {ticket.title[:160]}",
             status=IncidentStatus.PROBABLE,
@@ -176,10 +173,42 @@ async def detect_and_link(
 
     timeline = list(incident.timeline or [])
     for member in related:
-        member.incident_id = incident.id
+        if member.incident_id != incident.id:
+            old_incident_id = member.incident_id
+            member.incident_id = incident.id
+            session.add(
+                TicketEvent(
+                    ticket_id=member.id,
+                    actor_id=None,
+                    type="incident_linked",
+                    old_value=old_incident_id,
+                    new_value=incident.id,
+                )
+            )
         if member.id != ticket.id and member.escalation_status == EscalationStatus.PENDING_REVIEW:
+            old_escalation_status = member.escalation_status
             member.escalation_status = EscalationStatus.NONE
+            session.add(
+                TicketEvent(
+                    ticket_id=member.id,
+                    actor_id=None,
+                    type="escalation_status_changed",
+                    old_value=old_escalation_status.value,
+                    new_value=EscalationStatus.NONE.value,
+                )
+            )
+            old_suppressed = member.incident_escalation_suppressed
             member.incident_escalation_suppressed = True
+            if not old_suppressed:
+                session.add(
+                    TicketEvent(
+                        ticket_id=member.id,
+                        actor_id=None,
+                        type="incident_escalation_suppressed_changed",
+                        old_value="false",
+                        new_value="true",
+                    )
+                )
             suppressed = True
         association = await session.get(
             IncidentTicket, {"incident_id": incident.id, "ticket_id": member.id}

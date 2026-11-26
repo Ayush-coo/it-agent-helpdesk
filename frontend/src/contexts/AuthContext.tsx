@@ -11,6 +11,7 @@ type AuthContextValue = {
   isAuthenticated: boolean;
   isHydrating: boolean;
   login: (payload: LoginRequest) => Promise<void>;
+  demoLogin: () => void;
   register: (payload: RegisterRequest) => Promise<void>;
   logout: () => void;
 };
@@ -62,6 +63,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await authenticate('/api/v1/auth/login', payload);
   }
 
+  function demoLogin() {
+    const demoUser: AuthUser = {
+      id: 'demo-recruiter',
+      full_name: 'Agent',
+      email: 'recruiter@recine.ai',
+      role: 'agent',
+      is_active: true,
+      created_at: new Date().toISOString(),
+    };
+    saveToken('recine-demo-session');
+    setToken('recine-demo-session');
+    setUser(demoUser);
+  }
+
   async function register(payload: RegisterRequest) {
     await authenticate('/api/v1/auth/register', payload);
   }
@@ -79,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: Boolean(token && user),
       isHydrating,
       login,
+      demoLogin,
       register,
       logout,
     }),

@@ -5,6 +5,9 @@ Run with: python backend/scripts/seed_demo.py
 import asyncio
 import sys
 from pathlib import Path
+from typing import Any
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # Ensure the `backend` folder is on sys.path when running this script directly
 backend_root = Path(__file__).resolve().parents[1]
@@ -17,6 +20,25 @@ from app.schemas.knowledge_base import KnowledgeBaseIngestRequest
 from app.services.auth_service import AuthService
 from app.services.ticket_service import TicketService
 from app.services.knowledge_base_service import KnowledgeBaseService
+from app.models.user import User, UserRole
+from app.repositories.user_repository import UserRepository
+
+
+async def ensure_user(
+    session: AsyncSession,
+    auth: AuthService,
+    user_data: dict[str, Any],
+    role: UserRole,
+) -> User:
+    repository = UserRepository()
+    user = await repository.get_by_email(session, user_data["email"])
+    if user is None:
+        user = await auth.register_user(session, UserCreate(**user_data))
+    if user.role != role:
+        user.role = role
+        await session.commit()
+        await session.refresh(user)
+    return user
 
 
 async def seed() -> None:
@@ -26,21 +48,21 @@ async def seed() -> None:
         kb = KnowledgeBaseService()
 
         users = [
-            {"full_name": "Demo User", "email": "demo.user@example.com", "password": "Password123"},
-            {"full_name": "Support Agent", "email": "agent@example.com", "password": "Password123"},
+            ({"full_name": "Demo User", "email": "demo.user@example.com", "password": "Password123"}, UserRole.USER),
+            ({"full_name": "Support Agent", "email": "agent@example.com", "password": "Password123"}, UserRole.AGENT),
         ]
 
-        created_users = []
-        for u in users:
+        seeded_users = []
+        for user_data, role in users:
             try:
-                user = await auth.register_user(session, UserCreate(**u))
-                created_users.append(user)
-                print(f"Created user: {user.email} ({user.id})")
+                user = await ensure_user(session, auth, user_data, role)
+                seeded_users.append(user)
+                print(f"Ensured user: {user.email} ({user.role.value})")
             except Exception as exc:
-                print(f"Skipping user {u['email']}: {exc}")
+                print(f"Failed to ensure user {user_data['email']}: {exc}")
 
         # Create sample tickets for demo.user@example.com
-        requester = next((u for u in created_users if u.email == "demo.user@example.com"), None)
+        requester = next((u for u in seeded_users if u.email == "demo.user@example.com"), None)
         if requester:
             tickets = [
                 {"title": "Cannot connect to VPN", "description": "VPN connection fails with timeout when trying to connect to office network.", "priority": "high", "category": "network"},

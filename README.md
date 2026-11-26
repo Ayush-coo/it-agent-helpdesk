@@ -10,6 +10,9 @@ LocalOps Helpdesk is a local-first, policy-gated incident-aware IT operations ag
 flowchart LR
     UI[React employee and agent console] --> API[FastAPI API]
     API --> AUTH[JWT and RBAC]
+    API --> CHAT[LangGraph chat workflow]
+    CHAT --> CONVERSATIONS[(Conversations and messages)]
+    CHAT --> AGENTTOOLS[Role-checked agent tools]
     API --> TICKETS[(PostgreSQL tickets)]
     API --> INCIDENTS[(Probable incidents)]
     API --> POLICY[YAML policy engine]
@@ -25,6 +28,7 @@ flowchart LR
 
 | Capability | Status | Notes |
 |---|---|---|
+| Stateful helpdesk agent | Real / simulated identity adapter | LangGraph, last-10-message context, citations, ticket handoff, and next-turn OTP confirmation |
 | JWT auth, RBAC, ticket lifecycle | Real | Persisted through SQLAlchemy/Alembic |
 | Probable-incident clustering | Real | Time window, shared attributes, Ollama embeddings with lexical fallback |
 | Outage replay simulator | Real | Deterministic synthetic traffic and naive baseline comparison |
@@ -89,6 +93,8 @@ Local model latency/accuracy is reported as unavailable when Ollama models are n
 - Production startup rejects the default JWT secret.
 - PII and secrets are redacted before text reaches the local LLM.
 - Ticket text cannot approve or bypass policy decisions.
+- User and knowledge-base text cannot grant tool permissions or authorize access to other users' data.
+- Password reset and account unlock require a mock OTP and explicit confirmation in a later chat turn; results are recorded in ticket events.
 - Dry-run is the default for every policy action.
 - State-changing actions require the configured approver role and explicit approval.
 - Every action decision and outcome is recorded in a hash chain that can be verified.

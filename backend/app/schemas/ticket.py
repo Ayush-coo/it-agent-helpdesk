@@ -1,9 +1,14 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.ticket import EscalationStatus, SeverityLevel, TicketPriority, TicketStatus
+from app.models.ticket import (
+    EscalationStatus,
+    SeverityLevel,
+    TicketPriority,
+    TicketStatus,
+)
 
 
 class TicketCreate(BaseModel):
@@ -32,6 +37,7 @@ class TicketRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
+    ticket_number: str
     title: str
     description: str
     status: TicketStatus
@@ -43,10 +49,45 @@ class TicketRead(BaseModel):
     diagnostic_trail: list[dict[str, Any]] | None = None
     affected_assets: list[str] | None = None
     escalation_status: EscalationStatus = EscalationStatus.NONE
-    recommended_agent: str | None = None
     runbook_result: dict[str, Any] | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class TicketCommentCreate(BaseModel):
+    body: str = Field(min_length=1, max_length=10000)
+    is_internal: bool = False
+
+    @field_validator("body")
+    @classmethod
+    def body_must_not_be_blank(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Comment body cannot be blank")
+        return normalized
+
+
+class TicketCommentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    ticket_id: str
+    author_id: str
+    body: str
+    is_internal: bool
+    created_at: datetime
+
+
+class TicketEventRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    ticket_id: str
+    actor_id: str | None
+    type: str
+    old_value: str | None
+    new_value: str | None
+    created_at: datetime
 
 
 class TicketStatusCount(BaseModel):
@@ -80,7 +121,6 @@ class EscalationSummary(BaseModel):
     priority: TicketPriority
     category: str | None = None
     escalation_status: EscalationStatus
-    recommended_agent: str | None = None
     affected_assets: list[str] | None = None
     diagnostic_trail: list[dict[str, Any]] | None = None
     root_cause_hypothesis: str | None = None

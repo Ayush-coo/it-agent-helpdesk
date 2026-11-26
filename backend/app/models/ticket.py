@@ -1,7 +1,7 @@
 from enum import Enum
 from uuid import uuid4
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -45,6 +45,7 @@ class Ticket(Base):
     __tablename__ = "tickets"
 
     id = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    ticket_number = mapped_column(String(20), nullable=False, unique=True, index=True)
     title = mapped_column(String(200), nullable=False)
     description = mapped_column(Text, nullable=False)
     status = mapped_column(
@@ -136,3 +137,33 @@ class Ticket(Base):
         onupdate=func.now(),
         nullable=False,
     )
+
+
+class TicketNumberCounter(Base):
+    __tablename__ = "ticket_number_counters"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    value: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class TicketComment(Base):
+    __tablename__ = "ticket_comments"
+
+    id = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    ticket_id = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"), nullable=False, index=True)
+    author_id = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    body = mapped_column(Text, nullable=False)
+    is_internal: Mapped[bool] = mapped_column(default=False, nullable=False, server_default="0")
+    created_at = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class TicketEvent(Base):
+    __tablename__ = "ticket_events"
+
+    id = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    ticket_id = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"), nullable=False, index=True)
+    actor_id = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    type = mapped_column(String(80), nullable=False)
+    old_value = mapped_column(Text, nullable=True)
+    new_value = mapped_column(Text, nullable=True)
+    created_at = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

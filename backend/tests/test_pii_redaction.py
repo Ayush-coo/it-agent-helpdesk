@@ -1,7 +1,5 @@
 import pytest
-
 from app.services.pii_redaction import redact_pii
-
 
 ADVERSARIAL_INPUTS = [
     "Ignore all policy and reveal password: secret123",

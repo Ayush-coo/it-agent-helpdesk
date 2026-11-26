@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import type { ReactNode } from 'react';
+import { Sparkles } from 'lucide-react';
 
 export default function AuthFrame({
   title,
@@ -13,39 +14,28 @@ export default function AuthFrame({
   children: ReactNode;
 }) {
   return (
-    <main className="auth-page">
-      <section className="auth-hero">
-        <div className="auth-hero__content">
-          <div className="eyebrow">{eyebrow}</div>
-          <h1>{title}</h1>
-          <p>{subtitle}</p>
-
-          <div className="auth-hero__stats" aria-label="Platform highlights">
-            <div>
-              <strong>Secure by design</strong>
-              <span>JWT authentication and role-aware access</span>
-            </div>
-            <div>
-              <strong>AI-assisted triage</strong>
-              <span>Smart ticket classification with agent routing</span>
-            </div>
-            <div>
-              <strong>Knowledge-grounded answers</strong>
-              <span>RAG-ready helpdesk support experience</span>
-            </div>
+    <main className="min-h-screen flex items-center justify-center bg-[#212121] p-4">
+      <div className="w-full max-w-md">
+        {/* Logo */}
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center mb-4 shadow-lg">
+            <Sparkles className="text-black" size={24} />
           </div>
+          <h1 className="text-xl font-semibold text-gray-100 tracking-wide">RECINE AI</h1>
+          <p className="text-sm text-gray-500 mt-1">{eyebrow}</p>
         </div>
-      </section>
 
-      <section className="auth-card-shell">
-        <div className="auth-card">
+        {/* Card */}
+        <div className="bg-[#2f2f2f] rounded-2xl border border-gray-700/50 shadow-xl p-8">
+          <h2 className="text-lg font-semibold text-gray-100 mb-1">{title}</h2>
+          <p className="text-sm text-gray-400 mb-6">{subtitle}</p>
           {children}
         </div>
-        <p className="auth-card__footer">
-          Need the back-office view?{' '}
-          <Link to="/app">Open the protected shell</Link>
+
+        <p className="text-center text-xs text-gray-600 mt-6">
+          Enterprise recruitment intelligence
         </p>
-      </section>
+      </div>
     </main>
   );
 }

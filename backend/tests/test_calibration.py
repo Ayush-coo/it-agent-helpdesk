@@ -1,4 +1,4 @@
-from app.services.calibration import calibration_report, calibrate_triage
+from app.services.calibration import calibrate_triage, calibration_report
 
 
 def test_triage_returns_evidence_and_calibrated_abstention_fields() -> None:

@@ -1,6 +1,6 @@
 from collections.abc import Callable
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,8 +8,18 @@ from app.core.security import decode_access_token
 from app.db.session import get_db
 from app.models.user import User, UserRole
 from app.repositories.user_repository import UserRepository
+from app.services.chat_service import ChatService
+from app.services.knowledge_base_service import KnowledgeBaseService
 
 bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def get_chat_service(request: Request) -> ChatService:
+    return request.app.state.chat_service
+
+
+def get_knowledge_base_service(request: Request) -> KnowledgeBaseService:
+    return request.app.state.knowledge_base_service
 
 
 async def get_current_user(

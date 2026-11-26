@@ -8,8 +8,11 @@ export default function ProtectedRoute({ children }: { children: ReactNode }) {
 
   if (isHydrating) {
     return (
-      <div className="route-state">
-        <span>Loading session</span>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-2 border-armin/30 border-t-armin rounded-full animate-spin"></div>
+          <span className="text-sm text-slate-400">Loading session...</span>
+        </div>
       </div>
     );
   }

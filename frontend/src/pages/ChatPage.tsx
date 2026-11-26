@@ -1,41 +1,33 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bot, LogOut, Settings, ShieldAlert, Plus, MessageSquare } from 'lucide-react';
+import { Bot, LogOut, Settings, ShieldAlert, Plus } from 'lucide-react';
 import LocalOpsChat from '../components/chat/LocalOpsChat';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function ChatPage() {
   const { user, logout } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [chatSession, setChatSession] = useState(0);
 
   const isAdminOrAgent = user?.role === 'admin' || user?.role === 'agent';
 
   return (
-    <div className="flex h-screen bg-[#212121] text-gray-100 font-sans overflow-hidden">
+    <div className="flex h-[calc(100vh-3.5rem)] bg-[#212121] text-gray-100 font-sans overflow-hidden">
       {/* Sidebar */}
       <div 
         className={`${isSidebarOpen ? 'w-64' : 'w-0'} bg-[#171717] flex-shrink-0 transition-all duration-300 overflow-hidden flex flex-col border-r border-gray-800`}
       >
         <div className="p-3">
-          <button className="flex items-center gap-2 w-full px-3 py-2.5 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium">
+          <button
+            onClick={() => setChatSession((current) => current + 1)}
+            className="flex items-center gap-2 w-full px-3 py-2.5 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
+          >
             <Plus size={16} />
             New Chat
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3">
-          <div className="text-xs font-semibold text-gray-500 mb-2 px-3">Recent IT Requests</div>
-          {/* Mock history for now, but gives the GPT feel */}
-          <button className="flex items-center gap-2 w-full px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm text-left truncate text-gray-300">
-            <MessageSquare size={14} className="shrink-0" />
-            <span className="truncate">VPN Connection Issues</span>
-          </button>
-          <button className="flex items-center gap-2 w-full px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm text-left truncate text-gray-300">
-            <MessageSquare size={14} className="shrink-0" />
-            <span className="truncate">Need software license</span>
-          </button>
-        </div>
-
+        <div className="flex-1" />
         <div className="p-3 border-t border-gray-800 space-y-1">
           {isAdminOrAgent && (
             <Link to="/app/admin" className="flex items-center gap-2 w-full px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm">
@@ -67,7 +59,7 @@ export default function ChatPage() {
         {/* Desktop Sidebar Toggle (Optional, can just leave sidebar fixed) */}
         
         <main className="flex-1 overflow-hidden relative w-full h-full">
-          <LocalOpsChat />
+          <LocalOpsChat key={chatSession} />
         </main>
       </div>
     </div>

@@ -29,8 +29,9 @@ class KnowledgeBaseService:
         created_at = datetime.now(timezone.utc)
         normalized_tags = [tag.strip().lower() for tag in payload.tags if tag.strip()]
 
+        normalized_title = payload.title.strip()
         metadata = {
-            "title": payload.title.strip(),
+            "title": normalized_title,
             "source": payload.source.strip() if payload.source else None,
             "tags": "|".join(normalized_tags),
             "created_at": created_at.isoformat(),
@@ -44,7 +45,7 @@ class KnowledgeBaseService:
 
         return KnowledgeBaseDocument(
             id=document_id,
-            title=metadata["title"],
+            title=normalized_title,
             content=payload.content.strip(),
             source=metadata["source"],
             tags=normalized_tags,
@@ -77,4 +78,4 @@ class KnowledgeBaseService:
                 )
             )
 
-        return results
+        return [result for result in results if result.score >= settings.knowledge_min_score]

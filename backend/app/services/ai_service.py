@@ -1,25 +1,37 @@
-"""Local triage and routing engine.
+"""Local triage engine.
 
 This module implements:
   1. ITIL v4 severity classification (P1-P4)
   2. Intelligent asset extraction from natural-language descriptions
-  3. Dynamic agent routing based on mock system telemetry
-  4. Chain-of-thought diagnostic trail generation
-  5. Ollama LLM integration with robust heuristic fallback
+  3. Concise diagnostic summary generation
+  4. Ollama LLM integration with robust heuristic fallback
 """
 from __future__ import annotations
 
 import json
-import random
+import logging
 import re
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 import httpx
+from pydantic import BaseModel, Field, ValidationError
 
 from app.core.config import settings
 from app.services.calibration import calibrate_triage
 from app.services.pii_redaction import redact_pii
+
+logger = logging.getLogger(__name__)
+
+
+class _LLMTriageResponse(BaseModel):
+    priority: Literal["low", "medium", "high", "urgent"]
+    category: Literal["access", "network", "software", "hardware", "email", "security", "general"]
+    short_summary: str = Field(min_length=1, max_length=200)
+    next_steps: list[str]
+    severity: Literal["P1", "P2", "P3", "P4"] | None = None
+    affected_assets: list[str] | None = None
+
 
 # ---------------------------------------------------------------------------
 # 1.  ITIL v4 Severity Mapping  (P1 = Critical → P4 = Low)
@@ -130,78 +142,7 @@ def _classify_category(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 4.  Dynamic Agent Routing
-# ---------------------------------------------------------------------------
-
-# Simulated telemetry until a monitoring adapter is configured.
-def _get_system_telemetry() -> dict[str, Any]:
-    """Simulate real-time system telemetry for dynamic routing decisions."""
-    return {
-        "agent_load": {
-            "classifier_agent": random.uniform(0.1, 0.9),
-            "troubleshooting_agent": random.uniform(0.1, 0.9),
-            "knowledge_base_agent": random.uniform(0.1, 0.9),
-            "access_management_agent": random.uniform(0.1, 0.9),
-            "escalation_agent": random.uniform(0.1, 0.5),
-        },
-        "avg_resolution_time_minutes": {
-            "classifier_agent": 15,
-            "troubleshooting_agent": 30,
-            "knowledge_base_agent": 10,
-            "access_management_agent": 5,
-            "escalation_agent": 60,
-        },
-        "system_health": "nominal",
-        "mode": "simulated",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
-
-
-_CATEGORY_AGENT_MAP: dict[str, str] = {
-    "access": "access_management_agent",
-    "network": "troubleshooting_agent",
-    "software": "knowledge_base_agent",
-    "hardware": "troubleshooting_agent",
-    "email": "knowledge_base_agent",
-    "security": "escalation_agent",
-    "general": "classifier_agent",
-}
-
-_SEVERITY_OVERRIDE: dict[str, str] = {
-    "P1": "escalation_agent",
-    "P2": "escalation_agent",
-}
-
-
-def _route_agent(severity: str, category: str) -> tuple[str, dict[str, Any]]:
-    """Dynamically select the best agent based on severity, category, and
-    simulated system telemetry (load balancing)."""
-    telemetry = _get_system_telemetry()
-
-    # P1/P2 always escalate regardless of category
-    if severity in _SEVERITY_OVERRIDE:
-        agent = _SEVERITY_OVERRIDE[severity]
-        return agent, telemetry
-
-    # Category-based primary selection
-    primary = _CATEGORY_AGENT_MAP.get(category, "classifier_agent")
-
-    # Dynamic load check — if primary agent is overloaded (>0.8), try fallback
-    load = telemetry["agent_load"].get(primary, 0.5)
-    if load > 0.8:
-        # Find least-loaded alternative
-        candidates = {
-            k: v for k, v in telemetry["agent_load"].items()
-            if k != "escalation_agent"
-        }
-        fallback = min(candidates, key=candidates.get)  # type: ignore[arg-type]
-        return fallback, telemetry
-
-    return primary, telemetry
-
-
-# ---------------------------------------------------------------------------
-# 5.  Summary Generation
+# 4.  Summary Generation
 # ---------------------------------------------------------------------------
 
 def _short_summary(description: str) -> str:
@@ -211,10 +152,10 @@ def _short_summary(description: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 6.  Next-Steps Generation (context-aware)
+# 5.  Next-Steps Generation (context-aware)
 # ---------------------------------------------------------------------------
 
-def _generate_next_steps(severity: str, category: str, agent: str) -> list[str]:
+def _generate_next_steps(severity: str, category: str) -> list[str]:
     """Produce actionable next-steps tailored to the incident profile."""
     steps: list[str] = []
 
@@ -269,18 +210,16 @@ def _generate_next_steps(severity: str, category: str, agent: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# 7.  Diagnostic Trail Builder
+# 6.  Diagnostic Summary Builder
 # ---------------------------------------------------------------------------
 
 def _build_diagnostic_trail(
     description: str,
     severity: str,
     category: str,
-    agent: str,
-    telemetry: dict[str, Any],
     assets: list[str],
 ) -> list[dict[str, Any]]:
-    """Build a transparent chain-of-thought diagnostic trail."""
+    """Build a concise summary of deterministic triage checks."""
     now = datetime.now(timezone.utc).isoformat()
     trail: list[dict[str, Any]] = [
         {
@@ -307,23 +246,11 @@ def _build_diagnostic_trail(
             "result": f"Found {len(assets)} asset(s): {assets}" if assets else "No structured assets detected",
             "timestamp": now,
         },
-        {
-            "step": 5,
-            "action": "Telemetry Check",
-            "result": f"System health: {telemetry.get('system_health', 'unknown')}",
-            "timestamp": now,
-        },
-        {
-            "step": 6,
-            "action": "Dynamic Flow Routing",
-            "result": f"Routed to {agent} (load: {telemetry['agent_load'].get(agent, 'N/A'):.2f})",
-            "timestamp": now,
-        },
     ]
 
     if severity in ("P1", "P2"):
         trail.append({
-            "step": 7,
+            "step": 5,
             "action": "Policy Evaluation",
             "result": "HITL escalation triggered — awaiting senior engineer approval",
             "timestamp": now,
@@ -333,7 +260,7 @@ def _build_diagnostic_trail(
 
 
 # ---------------------------------------------------------------------------
-# 8.  Trigger Rules (enhanced from original)
+# 7.  Trigger Rules
 # ---------------------------------------------------------------------------
 
 def _apply_trigger_rules(description: str, result: dict[str, Any]) -> dict[str, Any]:
@@ -351,16 +278,13 @@ def _apply_trigger_rules(description: str, result: dict[str, Any]) -> dict[str, 
     if is_critical:
         normalized["severity"] = "P1"
         normalized["priority"] = "urgent"
-        normalized["recommended_agent"] = "escalation_agent"
         normalized["requires_escalation"] = True
     elif is_vpn:
         if normalized.get("severity") not in {"P1", "P2"}:
             normalized["severity"] = "P2"
         normalized["priority"] = "high"
-        normalized["recommended_agent"] = "troubleshooting_agent"
     elif is_password:
         normalized["category"] = "access"
-        normalized["recommended_agent"] = "access_management_agent"
 
     if is_vpn:
         normalized["category"] = "network"
@@ -376,10 +300,10 @@ def _apply_trigger_rules(description: str, result: dict[str, Any]) -> dict[str, 
 
 
 # ---------------------------------------------------------------------------
-# 9.  Main Entry Point — suggest_triage()
+# 8.  Main Entry Point — suggest_triage()
 # ---------------------------------------------------------------------------
 
-def suggest_triage(description: str) -> dict[str, Any]:
+async def suggest_triage(description: str) -> dict[str, Any]:
     """Perform enterprise-grade intelligent triage on an incident description.
 
     Tries Ollama LLM first, then falls back to the local heuristic engine.
@@ -396,8 +320,6 @@ def suggest_triage(description: str) -> dict[str, Any]:
         "severity (P1|P2|P3|P4 per ITIL v4), "
         "category (access|network|software|hardware|email|security|general), "
         "short_summary (one sentence), "
-        "recommended_agent (classifier_agent|troubleshooting_agent|knowledge_base_agent|"
-        "access_management_agent|escalation_agent), "
         "next_steps (list of 3-5 actionable steps), "
         "affected_assets (list of detected asset identifiers). "
         "P1 = critical business impact/outage/security breach. "
@@ -410,33 +332,32 @@ def suggest_triage(description: str) -> dict[str, Any]:
 
     try:
         url = settings.ollama_base_url.rstrip("/") + "/api/generate"
-        payload = {
+        request_payload = {
             "model": settings.ollama_model,
             "prompt": prompt,
-            "temperature": settings.ollama_temperature,
-            "max_tokens": 512,
             "stream": False,
+            "format": "json",
+            "options": {
+                "temperature": settings.ollama_temperature,
+                "num_predict": 512,
+            },
         }
-        with httpx.Client(timeout=settings.ollama_timeout_seconds) as client:
-            resp = client.post(url, json=payload)
-            resp.raise_for_status()
-            text = resp.text
-            try:
-                data = json.loads(text)
-                if isinstance(data, dict) and "response" in data:
-                    inner = data["response"]
-                    m = re.search(r"\{[\s\S]*\}", inner)
-                    if m:
-                        parsed = json.loads(m.group(0))
-                        return calibrate_triage(description, _enrich_result(description, _apply_trigger_rules(description, parsed)))
-                elif isinstance(data, dict):
-                    return calibrate_triage(description, _enrich_result(description, _apply_trigger_rules(description, data)))
-            except Exception:
-                m = re.search(r"\{[\s\S]*\}", text)
-                if m:
-                    return calibrate_triage(description, _enrich_result(description, _apply_trigger_rules(description, json.loads(m.group(0)))))
-    except Exception:
-        pass
+        async with httpx.AsyncClient(timeout=settings.ollama_timeout_seconds) as client:
+            response = await client.post(url, json=request_payload)
+            response.raise_for_status()
+        data = response.json()
+        if not isinstance(data, dict) or not isinstance(data.get("response"), str):
+            raise TypeError("Ollama response must contain a JSON string in 'response'")
+        parsed = _LLMTriageResponse.model_validate(json.loads(data["response"]))
+    except (httpx.HTTPError, json.JSONDecodeError, KeyError, TypeError, ValidationError) as exc:
+        logger.warning("Triage used heuristic fallback after Ollama request/validation failure: %s", exc)
+    else:
+        logger.info("Triage used validated Ollama response")
+        validated_result = parsed.model_dump(exclude_none=True)
+        return calibrate_triage(
+            description,
+            _enrich_result(description, _apply_trigger_rules(description, validated_result)),
+        )
 
     # --- Heuristic fallback ---
     severity = _classify_severity(description)
@@ -444,10 +365,9 @@ def suggest_triage(description: str) -> dict[str, Any]:
     category = _classify_category(description)
     summary = _short_summary(description)
     assets = _extract_assets(description)
-    agent, telemetry = _route_agent(severity, category)
-    next_steps = _generate_next_steps(severity, category, agent)
+    next_steps = _generate_next_steps(severity, category)
     diagnostic_trail = _build_diagnostic_trail(
-        description, severity, category, agent, telemetry, assets,
+        description, severity, category, assets,
     )
 
     result = {
@@ -455,7 +375,6 @@ def suggest_triage(description: str) -> dict[str, Any]:
         "severity": severity,
         "category": category,
         "short_summary": summary,
-        "recommended_agent": agent,
         "next_steps": next_steps,
         "affected_assets": assets,
         "diagnostic_trail": diagnostic_trail,
@@ -470,18 +389,15 @@ def _enrich_result(description: str, result: dict[str, Any]) -> dict[str, Any]:
     severity = result.get("severity", _classify_severity(description))
     category = result.get("category", _classify_category(description))
     assets = result.get("affected_assets") or _extract_assets(description)
-    agent = result.get("recommended_agent", _route_agent(severity, category)[0])
-    _, telemetry = _route_agent(severity, category)
-
     result.setdefault("severity", severity)
     result.setdefault("priority", _severity_to_priority(severity))
     result.setdefault("category", category)
     result.setdefault("short_summary", _short_summary(description))
-    result.setdefault("recommended_agent", agent)
-    result.setdefault("next_steps", _generate_next_steps(severity, category, agent))
+    result.pop("recommended_agent", None)
+    result.setdefault("next_steps", _generate_next_steps(severity, category))
     result.setdefault("affected_assets", assets)
     result.setdefault("requires_escalation", severity in ("P1", "P2"))
     result["diagnostic_trail"] = _build_diagnostic_trail(
-        description, severity, category, agent, telemetry, assets,
+        description, severity, category, assets,
     )
     return result

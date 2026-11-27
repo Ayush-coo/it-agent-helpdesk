@@ -4,7 +4,6 @@ import json
 import logging
 
 import httpx
-
 from app.core.config import settings
 from app.services import ai_service
 
@@ -168,6 +167,8 @@ def test_suggest_triage_security_incident_escalates(monkeypatch) -> None:
     result = asyncio.run(ai_service.suggest_triage("Suspected phishing email received with malware attachment"))
 
     assert result["category"] == "security"
+    assert result["severity"] in {"P1", "P2"}
+    assert result["requires_escalation"] is True
     assert isinstance(result["next_steps"], list)
 
     result2 = asyncio.run(
@@ -175,3 +176,24 @@ def test_suggest_triage_security_incident_escalates(monkeypatch) -> None:
     )
     assert result2["severity"] == "P1"
     assert result2["requires_escalation"] is True
+
+
+def test_keyword_rules_use_word_boundaries_and_issue_categories() -> None:
+    assert ai_service._classify_severity("The download folder is missing") != "P1"
+    assert ai_service._classify_category("The rollout plan is ready") != "network"
+    assert ai_service._classify_category("Wi-Fi keeps disconnecting") == "network"
+    assert ai_service._classify_category("Outlook is crashing") == "email"
+    assert ai_service._classify_category("My account is locked") == "access"
+
+
+def test_security_keywords_escalate_sensitive_incidents() -> None:
+    for text in (
+        "I clicked a suspicious link",
+        "I entered my password on an unknown page",
+        "A company device was lost",
+        "My laptop was stolen",
+        "Malware was detected",
+        "My account is compromised",
+    ):
+        assert ai_service._classify_category(text) == "security"
+        assert ai_service._classify_severity(text) in {"P1", "P2"}

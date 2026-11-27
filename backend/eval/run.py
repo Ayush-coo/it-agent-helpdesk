@@ -1,16 +1,12 @@
 from __future__ import annotations
 
 import json
-import time
 from pathlib import Path
 
-import httpx
-from app.core.config import settings
 from app.services.ai_service import _classify_category, _classify_severity
 from app.services.calibration import calibrate_triage, calibration_report
-from app.services.incident_simulator import simulate_incident_detection
-from app.services.knowledge_debt import knowledge_coverage_report
 
+from eval.retrieval import retrieval_hit_rate
 from eval.synthetic import build_dataset
 
 
@@ -42,41 +38,14 @@ def _triage_metrics(dataset) -> tuple[dict, list[dict]]:
     }, predictions
 
 
-def _model_comparison(dataset) -> list[dict]:
-    names = [settings.ollama_model, "llama3.2:3b"]
-    try:
-        started = time.perf_counter()
-        response = httpx.get(f"{settings.ollama_base_url.rstrip('/')}/api/tags", timeout=2)
-        response.raise_for_status()
-        available = {item.get("name") for item in response.json().get("models", [])}
-    except (httpx.HTTPError, ValueError, TypeError):
-        available = set()
-    rows = []
-    for name in names:
-        rows.append({
-            "model": name,
-            "status": "available" if name in available else "unavailable",
-            "accuracy": None,
-            "latency_ms": round((time.perf_counter() - started) * 1000, 2) if available else None,
-            "sample_size": 0,
-            "note": "Run with Ollama models pulled to measure generation accuracy and latency.",
-        })
-    return rows
-
-
 def run_evaluation() -> Path:
     dataset = build_dataset()
     triage, predictions = _triage_metrics(dataset)
-    incident = simulate_incident_detection(outage_scenarios=10, burst_size=5)
     calibration = calibration_report(predictions)
-    knowledge = knowledge_coverage_report(
-        [0.2 + (index % 3) * 0.1 for index in range(20)],
-        [0.7 + (index % 3) * 0.1 for index in range(20)],
-    )
-    models = _model_comparison(dataset)
+    retrieval = retrieval_hit_rate()
     report = f"""# LocalOps Helpdesk Evaluation
 
-Generated from {triage["ticket_count"]} labelled synthetic tickets and 10 injected outage scenarios.
+Generated from {triage["ticket_count"]} unique labelled synthetic tickets.
 
 ## Triage
 
@@ -96,30 +65,12 @@ Generated from {triage["ticket_count"]} labelled synthetic tickets and 10 inject
 {json.dumps(calibration["reliability_curve"], indent=2)}
 ```
 
-## Incident detection
+## Held-out retrieval
 
-| Metric | Detector | Naive keyword baseline |
-|---|---:|---:|
-| Precision | {incident["detector"]["precision"]:.1%} | {incident["naive_keyword_baseline"]["precision"]:.1%} |
-| Recall | {incident["detector"]["recall"]:.1%} | {incident["naive_keyword_baseline"]["recall"]:.1%} |
-| Time to detect (minutes) | {incident["detector"]["time_to_detect_minutes"]} | {incident["naive_keyword_baseline"]["time_to_detect_minutes"]} |
+Hit rate@3 on {retrieval["question_count"]} held-out questions: **{retrieval["hit_rate_at_3"]:.1%}**
 
-## Knowledge coverage
-
-| Before approval | After approval | Improvement |
-|---:|---:|---:|
-| {knowledge["before"]:.1%} | {knowledge["after"]:.1%} | {knowledge["improvement"]:.1%} |
-
-## Local model comparison
-
-| Model | Status | Accuracy | Latency |
-|---|---|---:|---:|
-""" + "\n".join(
-        f'| {row["model"]} | {row["status"]} | {row["accuracy"] or "not measured"} | {row["latency_ms"] or "not measured"} ms |'
-        for row in models
-    ) + """
-
-Model rows are intentionally marked unavailable when the local Ollama endpoint or model is not present.
+The retrieval score is computed by querying a fixed local article corpus with held-out
+questions and checking whether the labelled relevant article appears in the top three.
 """
     output = Path(__file__).resolve().parent / "report.md"
     output.write_text(report, encoding="utf-8")

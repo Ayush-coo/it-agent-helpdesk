@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import Request
+from fastapi import Depends, Request
 from fastapi.responses import PlainTextResponse
 from opentelemetry import trace
 
@@ -13,11 +13,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.core.config import settings
+from app.core.dependencies import require_roles
 from app.core.logging import configure_logging
 from app.core.metrics import prometheus_text, record_request
+from app.core.security import hash_password
 from app.db.init_db import init_db
 from app.db.session import AsyncSessionLocal
-from app.core.security import hash_password
 from app.models.user import User, UserRole
 from app.repositories.user_repository import UserRepository
 from app.services.chat_service import ChatService
@@ -87,7 +88,11 @@ async def observability_middleware(request: Request, call_next):
     return response
 
 
-@app.get("/metrics", include_in_schema=False)
+@app.get(
+    "/metrics",
+    include_in_schema=False,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.AGENT))],
+)
 async def metrics() -> PlainTextResponse:
     return PlainTextResponse(prometheus_text(), media_type="text/plain; version=0.0.4")
 

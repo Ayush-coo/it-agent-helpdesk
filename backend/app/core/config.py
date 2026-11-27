@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "dev-secret-change-me"
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60
+    auth_failure_limit: int = 5
+    auth_failure_window_minutes: int = 15
+    auth_lockout_minutes: int = 15
     admin_email: str | None = None
     admin_password: str | None = None
     ollama_base_url: str = "http://localhost:11434"

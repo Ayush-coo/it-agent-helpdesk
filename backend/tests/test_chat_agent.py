@@ -1,10 +1,7 @@
+from __future__ import annotations
+
 import asyncio
 from collections.abc import Sequence
-
-from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
-from langchain_core.tools import StructuredTool
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 from app.integrations.identity import FakeIdentityProvider
 from app.models import Base
@@ -22,6 +19,10 @@ from app.models.user import User, UserRole
 from app.schemas.chat import ChatRequest
 from app.schemas.knowledge_base import KnowledgeBaseSearchResult
 from app.services.chat_service import ChatService
+from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
+from langchain_core.tools import StructuredTool
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 
 class EmptyKnowledgeBase:

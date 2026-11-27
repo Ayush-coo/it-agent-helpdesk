@@ -38,7 +38,7 @@ def simulate_incident_detection(
     burst_size: int = 5,
     threshold: int = 3,
 ) -> dict[str, Any]:
-    """Replay normal traffic and injected bursts against two detector baselines."""
+    """Replay normal traffic and injected bursts against the incident detector."""
     rng = random.Random(seed)
     start = datetime(2026, 1, 1, tzinfo=timezone.utc)
     services = ["vpn", "email", "wifi", "printing", "ehr"]
@@ -79,8 +79,6 @@ def simulate_incident_detection(
 
     predictions: set[str] = set()
     delays: list[float] = []
-    keyword_predictions: set[str] = set()
-    keyword_delays: list[float] = []
     for ticket in tickets:
         recent = [
             item for item in tickets
@@ -95,22 +93,9 @@ def simulate_incident_detection(
                 first = next(item for item in recent if item.incident_id == ticket.incident_id)
                 delays.append((ticket.created_at - first.created_at).total_seconds() / 60)
 
-        keyword_recent = [
-            item for item in tickets
-            if item.created_at <= ticket.created_at
-            and ticket.created_at - item.created_at <= timedelta(minutes=30)
-            and any(word in item.description for word in ("outage", "down", "unavailable"))
-        ]
-        if len(keyword_recent) >= threshold and ticket.incident_id:
-            if ticket.incident_id not in keyword_predictions:
-                keyword_predictions.add(ticket.incident_id)
-                first = next(item for item in keyword_recent if item.incident_id == ticket.incident_id)
-                keyword_delays.append((ticket.created_at - first.created_at).total_seconds() / 60)
-
     return {
         "seed": seed,
         "ticket_count": len(tickets),
         "outage_scenarios": outage_scenarios,
         "detector": _scores(predictions, actual, delays),
-        "naive_keyword_baseline": _scores(keyword_predictions, actual, keyword_delays),
     }

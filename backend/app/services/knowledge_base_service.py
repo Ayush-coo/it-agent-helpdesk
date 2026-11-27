@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -10,6 +11,8 @@ from app.schemas.knowledge_base import (
     KnowledgeBaseIngestRequest,
     KnowledgeBaseSearchResult,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class KnowledgeBaseService:
@@ -57,7 +60,12 @@ class KnowledgeBaseService:
         if not clean_query:
             return []
 
-        hits = self._store.similarity_search_with_relevance_scores(clean_query, k=limit)
+        try:
+            hits = self._store.similarity_search_with_relevance_scores(clean_query, k=limit)
+        except Exception:
+            logger.exception("Knowledge-base search failed")
+            return []
+
         results: list[KnowledgeBaseSearchResult] = []
 
         for document, score in hits:

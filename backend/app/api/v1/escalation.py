@@ -95,16 +95,19 @@ async def handle_escalation(
     await AuditService.log_action(
         session=session,
         user=current_user,
-        action=f"escalation.{action.action}",
+        action=f"approval.{action.action}",
         resource_type="ticket",
         resource_id=ticket.id,
         severity=ticket.severity.value if ticket.severity else None,
-        request_payload={"reason": action.reason},
-        status="success"
+        request_payload={"reason": action.reason, "ticket_id": ticket.id},
+        result_payload={"escalation_status": ticket.escalation_status.value},
+        status="success",
     )
     await session.commit()
     await session.refresh(ticket)
-        
+    from app.services.ticket_events import publish
+    publish("ticket.escalation_updated")
+
     return to_ticket_read(ticket)
 
 
@@ -172,8 +175,14 @@ async def execute_ticket_runbook(
         resource_type="ticket",
         resource_id=ticket.id,
         tool_called=payload.runbook_name,
-        request_payload=payload.params,
-        status="success"
+        request_payload={**payload.params, "dry_run": payload.dry_run},
+        result_payload=ticket.runbook_result,
+        status=(
+            "success"
+            if ticket.runbook_result
+            and ticket.runbook_result.get("status") in {"success", "simulated"}
+            else "denied"
+        ),
     )
     await session.commit()
     await session.refresh(ticket)

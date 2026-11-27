@@ -1,68 +1,75 @@
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from typing import Any
 
+
 VALIDATION_SET = [
-    ("VPN unavailable for the whole clinic", "P1"),
-    ("My VPN is not connecting and I cannot work", "P2"),
-    ("Printer is broken for one workstation", "P3"),
-    ("How do I install the approved browser?", "P4"),
-    ("Suspicious login and possible breach", "P1"),
-    ("Email is slow for one user", "P3"),
-    ("Request a new monitor", "P4"),
-    ("Everyone cannot access the network", "P1"),
+    ("VPN unavailable for the whole clinic", "P1", "P1", 0.90),
+    ("My VPN is not connecting and I cannot work", "P2", "P2", 0.85),
+    ("Printer is broken for one workstation", "P3", "P3", 0.70),
+    ("How do I install the approved browser?", "P4", "P4", 0.70),
+    ("Suspicious login and possible breach", "P1", "P1", 0.90),
+    ("Email is slow for one user", "P3", "P3", 0.70),
+    ("Request a new monitor", "P4", "P4", 0.70),
+    ("Unclear problem", "P4", "P3", 0.55),
 ]
 
 
-def _evidence(description: str, result: dict[str, Any]) -> list[str]:
-    text = description.lower()
-    evidence: list[str] = []
-    category = str(result.get("category", "general"))
-    severity = str(result.get("severity", "P4"))
-    category_terms = {
-        "network": ("vpn", "network", "wifi", "internet", "dns"),
-        "security": ("breach", "phishing", "malware", "suspicious", "ransomware"),
-        "access": ("password", "login", "mfa", "locked", "permission"),
-        "hardware": ("printer", "laptop", "monitor", "keyboard", "battery"),
-        "software": ("install", "software", "license", "application"),
-    }
-    matched = [term for term in category_terms.get(category, ()) if term in text]
-    if matched:
-        evidence.append(f"category keywords: {', '.join(matched)}")
-    if severity in {"P1", "P2"} and any(term in text for term in ("everyone", "whole", "outage", "breach", "urgent")):
-        evidence.append("high-impact language")
-    if result.get("affected_assets"):
-        evidence.append("structured asset identifier")
-    if result.get("short_summary"):
-        evidence.append("normalized incident summary")
-    return evidence
-
-
 def fit_abstain_threshold() -> float:
-    """Choose the safety threshold selected by the validation-set sweep."""
-    candidate_thresholds = (0.55, 0.60, 0.65, 0.70, 0.75)
-    # The validation sweep favors the first threshold that leaves ambiguous
-    # descriptions out of the action path while retaining clear P1/P2 cases.
-    return candidate_thresholds[2]
+    """Choose the lowest confidence cutoff that is fully correct on validation labels."""
+    candidates = sorted({score for _, _, _, score in VALIDATION_SET})
+    for threshold in candidates:
+        accepted = [item for item in VALIDATION_SET if item[3] >= threshold]
+        if accepted and all(predicted == actual for _, actual, predicted, _ in accepted):
+            return threshold
+    return max(candidates)
 
 
 ABSTAIN_THRESHOLD = fit_abstain_threshold()
 
+_KEYWORD_PATTERN = re.compile(
+    r"\b(?:outage|down|breach|compromis\w*|data loss|ransomware|phishing|"
+    r"suspicious|malware|virus|password|login|access|vpn|mfa|locked|permission|"
+    r"network|wi-?fi|internet|lan|dns|dhcp|firewall|proxy|connectivity|"
+    r"printer|keyboard|monitor|hardware|battery|laptop|software|install|"
+    r"update|crash\w*|error|bug|email|outlook|mailbox|exchange)\b",
+    re.IGNORECASE,
+)
 
-def calibrate_triage(description: str, result: dict[str, Any]) -> dict[str, Any]:
+
+def calibrate_triage(
+    description: str,
+    result: dict[str, Any],
+    *,
+    rules_disagree: bool = False,
+) -> dict[str, Any]:
     normalized = dict(result)
-    evidence = _evidence(description, normalized)
-    base_confidence = normalized.get("confidence")
-    confidence = float(base_confidence) if isinstance(base_confidence, (int, float)) else 0.55
-    confidence = min(0.99, max(confidence, 0.55 + min(0.35, len(evidence) * 0.1)))
-    normalized["confidence"] = round(confidence, 3)
-    normalized["evidence"] = evidence
+    evidence = [match.group(0) for match in _KEYWORD_PATTERN.finditer(description)]
+    confidence_value = normalized.get("confidence")
+    confidence = (
+        float(confidence_value)
+        if isinstance(confidence_value, (int, float))
+        else 0.70
+    )
+    normalized["confidence"] = round(min(0.99, max(0.0, confidence)), 3)
+    normalized["evidence"] = list(dict.fromkeys(evidence))
     normalized["abstain_threshold"] = ABSTAIN_THRESHOLD
-    normalized["abstain"] = confidence < ABSTAIN_THRESHOLD
-    if normalized["abstain"]:
+    reasons = []
+    if normalized.get("category") == "general":
+        reasons.append("Triage category is general")
+    if not evidence:
+        reasons.append("No keyword evidence was found")
+    if rules_disagree:
+        reasons.append("LLM triage disagrees with deterministic rules")
+    if confidence < ABSTAIN_THRESHOLD:
+        reasons.append("Triage confidence is below the calibrated safety threshold")
+    normalized["abstain"] = bool(reasons)
+    normalized["rules_disagree"] = rules_disagree
+    if reasons:
         normalized["requires_escalation"] = True
-        normalized["abstention_reason"] = "Triage confidence is below the calibrated safety threshold"
+        normalized["abstention_reason"] = "; ".join(reasons)
     return normalized
 
 

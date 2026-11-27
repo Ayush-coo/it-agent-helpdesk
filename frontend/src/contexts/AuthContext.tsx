@@ -65,15 +65,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   function demoLogin() {
     const demoUser: AuthUser = {
-      id: 'demo-recruiter',
+      id: 'demo-agent',
       full_name: 'Agent',
-      email: 'recruiter@recine.ai',
+      email: 'agent@localops.test',
       role: 'agent',
       is_active: true,
       created_at: new Date().toISOString(),
     };
-    saveToken('recine-demo-session');
-    setToken('recine-demo-session');
+    saveToken('localops-demo-session');
+    setToken('localops-demo-session');
     setUser(demoUser);
   }
 

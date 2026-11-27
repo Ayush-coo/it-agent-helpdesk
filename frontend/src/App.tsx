@@ -7,7 +7,6 @@ import ChatPage from './pages/ChatPage';
 import DashboardPage from './pages/DashboardPage';
 import KnowledgeBasePage from './pages/KnowledgeBasePage';
 import LoginPage from './pages/LoginPage';
-import RecruitmentPage from './pages/RecruitmentPage';
 import RegisterPage from './pages/RegisterPage';
 import TicketDetailPage from './pages/TicketDetailPage';
 import TicketsPage from './pages/TicketsPage';
@@ -59,7 +58,6 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
-          <Route path="/recruitment" element={<RecruitmentPage />} />
           <Route
             path="/app/*"
             element={

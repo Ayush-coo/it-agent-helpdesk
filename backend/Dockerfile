@@ -9,12 +9,20 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd --system app \
+    && useradd --system --gid app --create-home app \
+    && mkdir -p /data/chroma \
+    && chown app:app /data/chroma
+
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app ./app
-COPY alembic ./alembic
-COPY alembic.ini ./alembic.ini
+COPY --chown=app:app app ./app
+COPY --chown=app:app alembic ./alembic
+COPY --chown=app:app policies ./policies
+COPY --chown=app:app alembic.ini ./alembic.ini
+
+USER app
 
 EXPOSE 8000
 

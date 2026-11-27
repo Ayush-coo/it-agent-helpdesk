@@ -31,14 +31,13 @@ flowchart LR
 | Stateful helpdesk agent | Real / simulated identity adapter | LangGraph, last-10-message context, citations, ticket handoff, and next-turn OTP confirmation |
 | JWT auth, RBAC, ticket lifecycle | Real | Persisted through SQLAlchemy/Alembic |
 | Probable-incident clustering | Real | Time window, shared attributes, Ollama embeddings with lexical fallback |
-| Outage replay simulator | Real | Deterministic synthetic traffic and naive baseline comparison |
+| Outage replay simulator | Real | Deterministic synthetic traffic with injected outage scenarios |
 | YAML runbook policy | Real | Risk, approver, preconditions, dry-run, rollback, rate/hours metadata |
 | Runbook infrastructure changes | Simulated | Handlers return simulated outcomes; no endpoint or IAM mutation occurs |
 | Calibrated abstention | Real | Evidence, threshold, reliability curve, safety metrics |
 | Knowledge-debt drafting | Real / simulated fallback | Human approval is required before Chroma ingestion |
 | Ollama reasoning and Chroma retrieval | Real when local services are available | No cloud model dependency |
 | Slack notification | Real adapter / mock fallback | Configure `SLACK_WEBHOOK_URL` to use the webhook |
-| Recruitment page | Legacy and unrelated | Retained by request; not part of the LocalOps thesis |
 
 ## Quickstart
 
@@ -50,7 +49,7 @@ Copy-Item .env.example .env
 docker compose up --build
 ```
 
-Open `http://localhost:5173/login`. The backend API is at `http://localhost:8000/docs`; metrics are at `http://localhost:8000/metrics`. Docker starts PostgreSQL, Ollama, Chroma persistence, Alembic migrations, and the nginx-served frontend. Pull local models separately when Ollama is ready:
+Open `http://localhost:5173/login`. The backend API is at `http://localhost:8000/docs`; `/metrics` requires an agent or admin bearer token. Docker starts PostgreSQL, Ollama, Chroma persistence, Alembic migrations, and the nginx-served frontend. Pull local models separately when Ollama is ready:
 
 ```powershell
 docker exec it-agent-ollama ollama pull llama3.1:8b
@@ -75,18 +74,16 @@ python -m eval.run
 python -m scripts.verify_audit
 ```
 
-The evaluation command writes [`backend/eval/report.md`](backend/eval/report.md) from 160 labelled synthetic tickets and 10 outage scenarios. The current measured results are:
+The evaluation command writes [`backend/eval/report.md`](backend/eval/report.md) from 138 unique labelled synthetic tickets and 8 held-out retrieval questions. The measured results are:
 
 | Metric | Result |
 |---|---:|
-| Severity accuracy | 66.9% |
-| Category accuracy | 73.8% |
-| P1/P2 recall | 79.7% |
-| Incident precision / recall | 100.0% / 100.0% |
-| Incident time to detect | 1.9 minutes |
-| Knowledge coverage before / after | 0.0% / 100.0% |
+| Severity accuracy | 67.4% |
+| Category accuracy | 76.1% |
+| P1/P2 recall | 68.5% |
+| Held-out lexical retrieval hit@3 | 62.5% |
 
-Local model latency/accuracy is reported as unavailable when Ollama models are not present; no unmeasured model claim is included.
+The incident replay utility no longer reports a keyword-baseline comparison. Retrieval hit@3 is measured against a fixed local article corpus; it is not a production Chroma/Ollama quality claim.
 
 ## Security model
 
@@ -97,6 +94,9 @@ Local model latency/accuracy is reported as unavailable when Ollama models are n
 - Password reset and account unlock require a mock OTP and explicit confirmation in a later chat turn; results are recorded in ticket events.
 - Dry-run is the default for every policy action.
 - State-changing actions require the configured approver role and explicit approval.
+- Escalation approval requests are persisted and audited; requesters cannot approve their own tickets.
+- Repeated login, registration, chat, and OTP failures trigger a temporary lockout after five failures.
+- The standalone `/metrics` endpoint requires an authenticated agent or admin.
 - Every action decision and outcome is recorded in a hash chain that can be verified.
 - P1/P2 and low-confidence triage abstain or escalate instead of guessing.
 - Simulated adapters never claim to have changed external infrastructure.
@@ -108,18 +108,16 @@ Local model latency/accuracy is reported as unavailable when Ollama models are n
 - The lexical embedding fallback is less precise than a live Ollama embedding model.
 - The evaluation data is synthetic and should not be presented as production accuracy.
 - Docker, Ollama model pulls, and Slack delivery were not verifiable in this Windows environment because Docker was unavailable.
-- Recruitment remains as an isolated legacy demo because deletion was not approved.
 
 ## Roadmap
 
 1. Connect approved IAM, endpoint, network, and ITSM adapters behind the existing policy interface.
 2. Add production-labelled incident and KB datasets with human-reviewed calibration.
 3. Add SSO, asset inventory, SLA reporting, and notification delivery.
-4. Remove or archive the legacy recruitment demo after explicit approval.
 
 ## Resume bullets
 
-- Built a local-first incident-aware IT operations agent with 100% incident precision and 100% recall across 10 injected outage scenarios.
-- Implemented evidence-based triage achieving 66.9% severity accuracy, 73.8% category accuracy, and 79.7% P1/P2 recall on 160 labelled synthetic tickets.
-- Added calibrated abstention, policy-gated simulated runbooks, PII redaction, and tamper-evident audit verification for safe local operations.
-- Added a knowledge-debt loop that increased synthetic retrieval coverage from 0.0% to 100.0% after approved article ingestion.
+- Built auditable incident-aware support workflows that turn correlated ticket patterns into escalation and resolution paths.
+- Implemented keyword triage with 67.4% severity accuracy, 76.1% category accuracy, and 68.5% P1/P2 recall on 138 unique synthetic tickets.
+- Added calibrated abstention, separate-user audited escalation approvals, policy-derived runbook RBAC, five-failure lockouts, PII redaction, and hash-chain audit verification.
+- Measured 62.5% hit@3 on 8 held-out questions against a fixed local knowledge-article corpus.

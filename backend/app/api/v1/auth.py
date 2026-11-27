@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user
+from app.core.rate_limit import failure_limiter, request_identifier
 from app.core.security import create_access_token
 from app.db.session import get_db
 from app.models.user import User
@@ -20,21 +21,37 @@ def build_auth_response(user: User) -> AuthResponse:
 
 
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
-async def register(payload: UserCreate, session: AsyncSession = Depends(get_db)) -> AuthResponse:
+async def register(
+    payload: UserCreate,
+    request: Request,
+    session: AsyncSession = Depends(get_db),
+) -> AuthResponse:
+    identifier = request_identifier(request)
+    failure_limiter.check("register", identifier)
     try:
         user = await AuthService().register_user(session, payload)
     except ValueError as exc:
+        failure_limiter.failure("register", identifier)
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
+    failure_limiter.success("register", identifier)
     return build_auth_response(user)
 
 
 @router.post("/login", response_model=AuthResponse)
-async def login(payload: LoginRequest, session: AsyncSession = Depends(get_db)) -> AuthResponse:
+async def login(
+    payload: LoginRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_db),
+) -> AuthResponse:
+    identifier = request_identifier(request)
+    failure_limiter.check("login", identifier)
     user = await AuthService().authenticate_user(session, payload)
     if user is None:
+        failure_limiter.failure("login", identifier)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
+    failure_limiter.success("login", identifier)
     return build_auth_response(user)
 
 

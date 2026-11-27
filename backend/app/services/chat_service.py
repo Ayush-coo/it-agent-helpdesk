@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from typing import Any, TypedDict
 from uuid import uuid4
 
-import httpx
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_ollama import ChatOllama
 from langgraph.graph import END, START, StateGraph
@@ -89,11 +88,15 @@ class ChatService:
         if not enabled:
             return [], "Knowledge retrieval was not requested.", []
 
-        results = await run_in_threadpool(
-            self._knowledge_base.search,
-            redact_pii(message.strip()),
-            settings.knowledge_retrieval_k,
-        )
+        try:
+            results = await run_in_threadpool(
+                self._knowledge_base.search,
+                redact_pii(message.strip()),
+                settings.knowledge_retrieval_k,
+            )
+        except Exception:
+            logger.exception("Knowledge-base retrieval failed")
+            return [], "Knowledge-base search is temporarily unavailable.", []
         references = [
             ChatContextReference(
                 id=result.id,
@@ -117,7 +120,7 @@ class ChatService:
         message = (state.get("message") or "").lower()
         previous_offer = next(
             (
-                item.content.lower()
+                item.text().lower()
                 for item in reversed(state.get("model_messages", []))
                 if isinstance(item, AIMessage)
             ),
@@ -207,7 +210,7 @@ class ChatService:
             llm = self._llm.bind_tools(tool_list) if hasattr(self._llm, "bind_tools") else self._llm
             try:
                 response = await llm.ainvoke(model_messages)
-            except httpx.HTTPError:
+            except Exception:
                 logger.exception("Local chat model request failed")
                 fallback = (
                     "I couldn't reach the local helpdesk model, so no action was taken. "
@@ -367,13 +370,13 @@ class ChatService:
 
         conversation: Conversation | None = None
         if conversation_id:
-            result = await session.execute(
+            conversation_result = await session.execute(
                 select(Conversation).where(
                     Conversation.id == conversation_id,
                     Conversation.user_id == current_user.id,
                 )
             )
-            conversation = result.scalar_one_or_none()
+            conversation = conversation_result.scalar_one_or_none()
             if conversation is None:
                 raise PermissionError("Conversation not found.")
         else:
@@ -382,13 +385,13 @@ class ChatService:
             await session.flush()
 
         conversation.updated_at = datetime.now(timezone.utc)
-        result = await session.execute(
+        message_result = await session.execute(
             select(ConversationMessage)
             .where(ConversationMessage.conversation_id == conversation.id)
             .order_by(ConversationMessage.created_at.desc(), ConversationMessage.id.desc())
             .limit(10)
         )
-        stored_messages = list(result.scalars().all())
+        stored_messages = list(message_result.scalars().all())
         stored_messages.reverse()
         history = [{"role": item.role, "content": item.content} for item in stored_messages]
         return conversation, conversation.id, history

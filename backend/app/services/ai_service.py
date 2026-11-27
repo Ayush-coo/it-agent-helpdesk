@@ -40,15 +40,22 @@ class _LLMTriageResponse(BaseModel):
 _P1_KEYWORDS = frozenset({
     "outage", "down", "breach", "compromise", "data loss", "ransomware",
     "whole team", "everyone", "production down", "critical failure",
-    "security incident", "service unavailable",
+    "security incident", "service unavailable", "phishing",
+    "clicked a suspicious link", "entered password on unknown page",
+    "lost device", "device was lost", "stolen device", "device was stolen",
+    "lost or stolen device", "lost laptop", "laptop was lost", "stolen laptop",
+    "laptop was stolen", "malware", "compromised account", "account compromised",
+    "account is compromised",
 })
 _P2_KEYWORDS = frozenset({
     "urgent", "immediately", "cannot work", "blocked", "major",
-    "multiple users", "degraded", "significant impact",
+    "multiple users", "degraded", "significant impact", "clicked suspicious link",
+    "entered my password on an unknown page",
 })
 _P3_KEYWORDS = frozenset({
     "cannot", "can't", "unable", "error", "failed", "failure",
-    "not working", "broken", "access denied",
+    "not working", "broken", "access denied", "locked out", "account locked",
+    "crashing",
 })
 _P4_KEYWORDS = frozenset({
     "slow", "intermittent", "minor", "cosmetic", "question",
@@ -58,14 +65,20 @@ _P4_KEYWORDS = frozenset({
 
 def _classify_severity(text: str) -> str:
     """Map free-text to an ITIL P1-P4 severity level."""
-    lower = text.lower()
-    if any(kw in lower for kw in _P1_KEYWORDS):
+    if _has_keyword(text, _P1_KEYWORDS):
         return "P1"
-    if any(kw in lower for kw in _P2_KEYWORDS):
+    if _has_keyword(text, _P2_KEYWORDS):
         return "P2"
-    if any(kw in lower for kw in _P3_KEYWORDS):
+    if _has_keyword(text, _P3_KEYWORDS):
         return "P3"
     return "P4"
+
+
+def _has_keyword(text: str, keywords: frozenset[str] | list[str]) -> bool:
+    return any(
+        re.search(r"(?<!\w)" + re.escape(keyword) + r"(?!\w)", text, re.IGNORECASE)
+        for keyword in keywords
+    )
 
 
 def _severity_to_priority(severity: str) -> str:
@@ -116,10 +129,12 @@ def _extract_assets(text: str) -> list[str]:
 _CATEGORY_MAP: dict[str, list[str]] = {
     "access": ["password", "login", "access", "credentials", "signin",
                "sign-in", "vpn", "mfa", "2fa", "locked out", "account locked",
+               "account is locked",
                "permission", "unauthorized", "authentication"],
-    "network": ["network", "wifi", "internet", "lan", "dns", "dhcp",
+    "network": ["network", "wifi", "wi-fi", "internet", "lan", "dns", "dhcp",
                 "firewall", "proxy", "connectivity", "latency", "packet loss"],
-    "software": ["install", "update", "crash", "error", "bug", "app",
+    "software": ["install", "update", "crash", "crashing", "error", "bug", "app",
+                 "application",
                  "software", "patch", "license", "deployment", "ci/cd",
                  "pipeline", "build"],
     "hardware": ["printer", "keyboard", "monitor", "hardware", "battery",
@@ -128,15 +143,31 @@ _CATEGORY_MAP: dict[str, list[str]] = {
     "email": ["email", "outlook", "mailbox", "imap", "smtp", "calendar",
               "meeting invite", "exchange"],
     "security": ["virus", "malware", "phishing", "breach", "compromise",
-                 "ransomware", "suspicious", "threat", "vulnerability"],
+                 "compromised account", "account compromised", "suspicious",
+                 "clicked suspicious link", "entered password on unknown page",
+                 "lost device", "stolen device", "lost laptop", "stolen laptop",
+                 "device was lost", "device was stolen", "laptop was lost",
+                 "laptop was stolen",
+                 "threat", "vulnerability"],
 }
 
 
 def _classify_category(text: str) -> str:
-    lower = text.lower()
     scores: dict[str, int] = {}
     for cat, keywords in _CATEGORY_MAP.items():
-        scores[cat] = sum(1 for kw in keywords if kw in lower)
+        scores[cat] = sum(1 for kw in keywords if _has_keyword(text, [kw]))
+    if _has_keyword(text, [
+        "phishing", "malware", "ransomware", "breach", "compromised account",
+        "account compromised", "account is compromised", "suspicious link",
+        "entered password on unknown page", "unknown page", "lost device",
+        "device was lost", "stolen device", "device was stolen", "lost or stolen device",
+        "lost laptop", "laptop was lost", "stolen laptop", "laptop was stolen",
+    ]):
+        return "security"
+    if _has_keyword(text, ["outlook", "mailbox", "email", "exchange"]):
+        return "email"
+    if _has_keyword(text, ["account is locked", "account locked", "locked out"]):
+        return "access"
     best = max(scores, key=scores.get)  # type: ignore[arg-type]
     return best if scores[best] > 0 else "general"
 
@@ -268,12 +299,25 @@ def _apply_trigger_rules(description: str, result: dict[str, Any]) -> dict[str, 
     text = description.lower()
     normalized = dict(result)
 
-    is_vpn = "vpn" in text
-    is_password = any(term in text for term in ("password", "account locked", "reset my login"))
-    is_critical = any(term in text for term in (
+    is_vpn = _has_keyword(description, ["vpn"])
+    is_security = _has_keyword(description, [
+        "phishing", "malware", "virus", "ransomware", "breach", "compromised account",
+        "account compromised", "account is compromised", "suspicious link",
+        "entered password on unknown page", "unknown page", "lost device",
+        "device was lost", "stolen device", "device was stolen", "lost or stolen device",
+        "lost laptop", "laptop was lost", "stolen laptop", "laptop was stolen",
+    ])
+    is_password = _has_keyword(description, ["password", "account locked", "account is locked", "reset my login"])
+    is_critical = _has_keyword(description, [
         "outage", "whole team", "everyone", "data loss", "breach", "compromise",
-        "ransomware", "production down",
-    ))
+        "ransomware", "production down", "phishing", "malware", "clicked a suspicious link",
+        "clicked suspicious link", "entered password on unknown page",
+        "entered my password on an unknown page", "lost device", "stolen device",
+        "device was lost", "device was stolen", "lost or stolen device",
+        "lost laptop", "laptop was lost", "stolen laptop", "laptop was stolen",
+        "compromised account", "account compromised", "account is compromised",
+        "account compromised",
+    ])
 
     if is_critical:
         normalized["severity"] = "P1"
@@ -288,6 +332,8 @@ def _apply_trigger_rules(description: str, result: dict[str, Any]) -> dict[str, 
 
     if is_vpn:
         normalized["category"] = "network"
+    if is_security:
+        normalized["category"] = "security"
 
     if not isinstance(normalized.get("next_steps"), list) or not normalized["next_steps"]:
         normalized["next_steps"] = ["Gather the affected device, exact error, and recent changes"]
@@ -354,9 +400,14 @@ async def suggest_triage(description: str) -> dict[str, Any]:
     else:
         logger.info("Triage used validated Ollama response")
         validated_result = parsed.model_dump(exclude_none=True)
+        rules_disagree = (
+            (parsed.severity is not None and parsed.severity != _classify_severity(description))
+            or parsed.category != _classify_category(description)
+        )
         return calibrate_triage(
             description,
             _enrich_result(description, _apply_trigger_rules(description, validated_result)),
+            rules_disagree=rules_disagree,
         )
 
     # --- Heuristic fallback ---

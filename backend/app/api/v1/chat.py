@@ -2,23 +2,16 @@ import json
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_chat_service, get_current_user
+from app.core.rate_limit import failure_limiter
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.chat_service import ChatService
-from app.services.workspace_service import WorkspaceService
 
 router = APIRouter()
-
-
-class WorkspaceToolRequest(BaseModel):
-    operation: str = Field(pattern="^(read_file|search)$")
-    path: str = Field(default=".", max_length=240)
-    query: str | None = Field(default=None, max_length=200)
 
 
 @router.post("", response_model=ChatResponse)
@@ -29,8 +22,18 @@ async def chat(
     service: ChatService = Depends(get_chat_service),
 ) -> ChatResponse:
     from app.services.audit_service import AuditService
+    failure_limiter.check("chat", current_user.id)
+    is_otp_attempt = payload.action_confirmation == "confirm"
+    if is_otp_attempt:
+        failure_limiter.check("otp", current_user.id)
     try:
         reply = await service.get_reply(payload, current_user, session)
+        if is_otp_attempt:
+            if reply.pending_action:
+                failure_limiter.failure("otp", current_user.id)
+            else:
+                failure_limiter.success("otp", current_user.id)
+        failure_limiter.success("chat", current_user.id)
         await AuditService.log_action(
             session=session,
             user=current_user,
@@ -46,8 +49,12 @@ async def chat(
         await session.commit()
         return reply
     except RuntimeError as exc:
+        failure_limiter.failure("chat", current_user.id)
+        if is_otp_attempt:
+            failure_limiter.failure("otp", current_user.id)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except PermissionError as exc:
+        failure_limiter.failure("chat", current_user.id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
@@ -57,27 +64,15 @@ async def chat_stream(
     current_user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),
 ) -> StreamingResponse:
+    failure_limiter.check("chat", current_user.id)
 
     async def event_stream():
         try:
             async for event in service.stream_reply(payload, current_user):
                 yield event
+            failure_limiter.success("chat", current_user.id)
         except RuntimeError as exc:
+            failure_limiter.failure("chat", current_user.id)
             yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
-
-
-@router.post("/workspace", response_model=dict[str, object])
-async def workspace_tool(
-    payload: WorkspaceToolRequest,
-    current_user: User = Depends(get_current_user),
-) -> dict[str, object]:
-    del current_user
-    service = WorkspaceService()
-    try:
-        if payload.operation == "read_file":
-            return service.read_file(payload.path)
-        return service.search(payload.query or "", payload.path)
-    except (OSError, UnicodeError, ValueError) as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

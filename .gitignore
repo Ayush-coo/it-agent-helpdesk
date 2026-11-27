@@ -62,3 +62,6 @@ backend/.chroma/
 
 postgres_data/
 .DS_Store
+
+migration-output*.txt
+*.tsbuildinfo

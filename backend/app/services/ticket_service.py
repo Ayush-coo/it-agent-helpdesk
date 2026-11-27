@@ -9,8 +9,10 @@ This service orchestrates:
 """
 from datetime import datetime, timezone
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.approval import ApprovalRequest
 from app.models.ticket import (
     EscalationStatus,
     SeverityLevel,
@@ -26,8 +28,8 @@ from app.repositories.user_repository import UserRepository
 from app.schemas.ticket import (
     EscalationAction,
     EscalationSummary,
-    TicketCreate,
     TicketCommentCreate,
+    TicketCreate,
     TicketOverview,
     TicketRead,
     TicketStatusCount,
@@ -120,6 +122,23 @@ class TicketService:
         await self._record_event(
             session, ticket, current_user, "created", None, ticket.title
         )
+        approval_request: ApprovalRequest | None = None
+        if requires_escalation:
+            approval_request = ApprovalRequest(
+                ticket_id=ticket.id,
+                requester_id=current_user.id,
+                status="pending",
+            )
+            session.add(approval_request)
+            await session.flush()
+            await self._record_event(
+                session,
+                ticket,
+                current_user,
+                "approval_requested",
+                None,
+                approval_request.id,
+            )
         incident_result = await detect_and_link(session, ticket)
         
         from app.services.audit_service import AuditService
@@ -138,6 +157,17 @@ class TicketService:
             },
             status="success",
         )
+        if approval_request is not None:
+            await AuditService.log_action(
+                session=session,
+                user=current_user,
+                action="approval.requested",
+                resource_type="approval",
+                resource_id=approval_request.id,
+                severity=severity_enum.value,
+                request_payload={"ticket_id": ticket.id},
+                status="success",
+            )
         
         await session.commit()
         await session.refresh(ticket)
@@ -411,6 +441,17 @@ class TicketService:
             return None
         if ticket.escalation_status != EscalationStatus.PENDING_REVIEW:
             return None  # Can only act on pending escalations
+        if ticket.requester_id == current_user.id:
+            raise ValueError("The requester cannot approve or reject their own request")
+        approval_result = await session.execute(
+            select(ApprovalRequest).where(
+                ApprovalRequest.ticket_id == ticket.id,
+                ApprovalRequest.status == "pending",
+            )
+        )
+        approval_request = approval_result.scalar_one_or_none()
+        if approval_request is None:
+            return None
         if (
             action.action == "approve"
             and ticket.status != TicketStatus.IN_PROGRESS
@@ -424,6 +465,10 @@ class TicketService:
         trail = list(ticket.diagnostic_trail or [])
 
         if action.action == "approve":
+            approval_request.status = "approved"
+            approval_request.approver_id = current_user.id
+            approval_request.reason = action.reason
+            approval_request.decided_at = datetime.now(timezone.utc)
             old_escalation_status = ticket.escalation_status
             ticket.escalation_status = EscalationStatus.APPROVED
             old_status = ticket.status
@@ -452,6 +497,10 @@ class TicketService:
                 "timestamp": now,
             })
         elif action.action == "reject":
+            approval_request.status = "rejected"
+            approval_request.approver_id = current_user.id
+            approval_request.reason = action.reason
+            approval_request.decided_at = datetime.now(timezone.utc)
             old_escalation_status = ticket.escalation_status
             ticket.escalation_status = EscalationStatus.REJECTED
             await self._record_event(
@@ -471,10 +520,15 @@ class TicketService:
         else:
             return None
 
+        await self._record_event(
+            session,
+            ticket,
+            current_user,
+            "approval_approved" if action.action == "approve" else "approval_rejected",
+            "pending",
+            current_user.id,
+        )
         ticket.diagnostic_trail = trail
-        await session.commit()
-        await session.refresh(ticket)
-        publish("ticket.escalation_updated")
         return ticket
 
     async def get_escalation_summary(
@@ -557,8 +611,16 @@ class TicketService:
         )
         if not decision.can_execute:
             result = execute_runbook(runbook_name, {})
-            result.status = RunbookStatus.SIMULATED if dry_run else RunbookStatus.BLOCKED
-            result.actions = [decision.reason]
+            result.status = (
+                RunbookStatus.BLOCKED
+                if decision.decision in {"deny", "needs_approval"}
+                else RunbookStatus.SIMULATED
+            )
+            result.actions = [
+                f"Denied: {decision.reason}"
+                if decision.decision == "deny"
+                else decision.reason
+            ]
             result.details = {
                 "policy_decision": decision.decision,
                 "risk_tier": decision.risk_tier,

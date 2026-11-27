@@ -60,8 +60,8 @@ def test_restart_endpoint_service_with_name() -> None:
     assert result.status == RunbookStatus.SIMULATED
 
 
-def test_check_system_health() -> None:
-    result = execute_runbook("check_system_health", {"target": "dc-01"})
+def test_system_health_check() -> None:
+    result = execute_runbook("system_health_check", {"target": "dc-01"})
     assert result.status == RunbookStatus.SIMULATED
     assert result.to_dict()["details"]["overall_status"] == "nominal"
 
@@ -89,7 +89,7 @@ def test_recommend_runbooks_p3_returns_suggestions() -> None:
 
 def test_runbook_result_to_dict_structure() -> None:
     """to_dict() output should contain all required fields."""
-    result = execute_runbook("check_system_health", {})
+    result = execute_runbook("system_health_check", {})
     d = result.to_dict()
     assert "runbook_name" in d
     assert "status" in d

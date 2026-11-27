@@ -2,6 +2,7 @@ runbooks:
   reset_ad_password:
     description: Reset an Active Directory password after identity verification.
     risk_tier: high
+    allowed_roles: [agent, admin]
     required_approver_role: admin
     preconditions:
       - identity_verified
@@ -16,6 +17,7 @@ runbooks:
   flush_vpn_sessions:
     description: Flush stale VPN sessions for one user or device.
     risk_tier: medium
+    allowed_roles: [agent, admin]
     required_approver_role: agent
     preconditions:
       - target
@@ -28,6 +30,7 @@ runbooks:
   restart_print_spooler:
     description: Restart the print spooler on one endpoint.
     risk_tier: medium
+    allowed_roles: [agent, admin]
     required_approver_role: agent
     preconditions:
       - device_id
@@ -40,6 +43,7 @@ runbooks:
   clear_browser_cache:
     description: Clear browser cache on one managed endpoint.
     risk_tier: low
+    allowed_roles: [user, agent, admin]
     required_approver_role: agent
     preconditions:
       - device_id
@@ -52,6 +56,7 @@ runbooks:
   restart_endpoint_service:
     description: Restart one named service on one managed endpoint.
     risk_tier: high
+    allowed_roles: [admin]
     required_approver_role: admin
     preconditions:
       - device_id
@@ -65,6 +70,7 @@ runbooks:
   system_health_check:
     description: Collect read-only endpoint health signals.
     risk_tier: low
+    allowed_roles: [user, agent, admin]
     required_approver_role: agent
     preconditions:
       - device_id

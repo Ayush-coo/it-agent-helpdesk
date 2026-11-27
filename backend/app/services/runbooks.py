@@ -251,13 +251,13 @@ def _restart_endpoint_service(params: dict[str, Any]) -> RunbookResult:
     )
 
 
-@_register("check_system_health")
+@_register("system_health_check")
 def _check_system_health(params: dict[str, Any]) -> RunbookResult:
     """Run a comprehensive health check on a target system or endpoint."""
-    target = params.get("target", "all_systems")
+    target = params.get("device_id", params.get("target", "all_systems"))
 
     return RunbookResult(
-        runbook_name="check_system_health",
+        runbook_name="system_health_check",
         status=RunbookStatus.SIMULATED,
         actions=[
             f"[MOCK] Initiated health check for: {target}",
@@ -287,12 +287,12 @@ def _check_system_health(params: dict[str, Any]) -> RunbookResult:
 
 _CATEGORY_RUNBOOK_MAP: dict[str, list[str]] = {
     "access": ["reset_ad_password"],
-    "network": ["flush_vpn_sessions", "check_system_health"],
+    "network": ["flush_vpn_sessions", "system_health_check"],
     "software": ["clear_browser_cache", "restart_endpoint_service"],
-    "hardware": ["check_system_health", "restart_print_spooler"],
-    "email": ["restart_endpoint_service", "check_system_health"],
+    "hardware": ["system_health_check", "restart_print_spooler"],
+    "email": ["restart_endpoint_service", "system_health_check"],
     "security": [],  # Security incidents should NOT auto-remediate
-    "general": ["check_system_health"],
+    "general": ["system_health_check"],
 }
 
 

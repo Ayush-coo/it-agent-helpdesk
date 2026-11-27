@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { Sparkles } from 'lucide-react';
 
@@ -21,7 +20,7 @@ export default function AuthFrame({
           <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center mb-4 shadow-lg">
             <Sparkles className="text-black" size={24} />
           </div>
-          <h1 className="text-xl font-semibold text-gray-100 tracking-wide">RECINE AI</h1>
+          <h1 className="text-xl font-semibold text-gray-100 tracking-wide">LocalOps</h1>
           <p className="text-sm text-gray-500 mt-1">{eyebrow}</p>
         </div>
 
@@ -33,7 +32,7 @@ export default function AuthFrame({
         </div>
 
         <p className="text-center text-xs text-gray-600 mt-6">
-          Enterprise recruitment intelligence
+          Local-first IT operations support
         </p>
       </div>
     </main>

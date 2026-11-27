@@ -4,7 +4,6 @@ import re
 from collections import defaultdict
 from typing import Any
 
-
 VALIDATION_SET = [
     ("VPN unavailable for the whole clinic", "P1", "P1", 0.90),
     ("My VPN is not connecting and I cannot work", "P2", "P2", 0.85),

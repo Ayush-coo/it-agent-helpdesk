@@ -296,7 +296,6 @@ def _build_diagnostic_trail(
 
 def _apply_trigger_rules(description: str, result: dict[str, Any]) -> dict[str, Any]:
     """Apply enterprise trigger rules on top of LLM/heuristic results."""
-    text = description.lower()
     normalized = dict(result)
 
     is_vpn = _has_keyword(description, ["vpn"])

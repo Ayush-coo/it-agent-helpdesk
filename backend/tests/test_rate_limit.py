@@ -1,7 +1,6 @@
 import pytest
-from fastapi import HTTPException
-
 from app.core.rate_limit import FailureRateLimiter
+from fastapi import HTTPException
 
 
 def test_failure_limiter_locks_after_five_failures_and_resets_on_success() -> None:

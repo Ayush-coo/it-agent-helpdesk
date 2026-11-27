@@ -1,12 +1,11 @@
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
-
-from app.models.user import UserRole
 from app.middleware.rbac import require_rbac_for_runbook
+from app.models.user import UserRole
 from app.services.policy_engine import load_runbook_policies
 from app.services.runbooks import get_available_runbooks
+from fastapi import HTTPException
 
 
 def test_runbook_permissions_come_from_policy_yaml() -> None:

@@ -3,7 +3,6 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
-
 from app.models.approval import ApprovalRequest
 from app.models.ticket import EscalationStatus, SeverityLevel, Ticket, TicketPriority, TicketStatus
 from app.models.user import UserRole

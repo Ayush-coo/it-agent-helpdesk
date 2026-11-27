@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Sequence
+from typing import Self
 
 from app.integrations.identity import FakeIdentityProvider
 from app.models import Base
@@ -37,7 +38,7 @@ class ScriptedLLM:
         self.calls: list[list[BaseMessage]] = []
         self.tools: list[StructuredTool] = []
 
-    def bind_tools(self, tools: list[StructuredTool]) -> ScriptedLLM:
+    def bind_tools(self, tools: list[StructuredTool]) -> Self:
         self.tools = tools
         return self
 

@@ -98,7 +98,7 @@ async def get_admin_metrics(
         )
         .order_by(TicketEvent.created_at.asc())
     )
-    average_response_minutes = _average_response_minutes(response_events.all())
+    average_response_minutes = _average_response_minutes(response_events.tuples().all())
 
     return {
         "total_tickets": len(all_tickets),
